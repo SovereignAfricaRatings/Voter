@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ward election intelligence: demonstration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  --paper:#F2F4F1;--sheet:#FBFCFA;--ink:#17262B;--muted:#586869;--line:#CDD5D0;--soft:#E8ECE8;
+  --side:#14252B;--side-ink:#C9D6D3;--side-on:#24393F;--side-strong:#FFFFFF;
+  --select:#C98A00;--warn:#A8371F;--ok:#2F6B4F;--flag-bg:#F4DF9B;--flag-ink:#3A2A00;
+  --c0:#E3ECE6;--c1:#B4CFC4;--c2:#74A69D;--c3:#33737A;--c4:#12323F;
+  --neg:#B5533C;--mid:#E6E9E5;--pos:#2F6F8F;
+  --ANC:#1F7A3E;--DA:#1F5FA8;--EFF:#C0262D;--MK:#2A2A2A;--MKfg:#fff;--IFP:#C99A00;--PA:#0E8F8F;--ASA:#6BAA2C;--VF:#E57A17;--OTH:#8A9299;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#11181A;--sheet:#182124;--ink:#E6ECEA;--muted:#9FB0AF;--line:#2E3B3E;--soft:#1F2A2D;
+  --side:#0B1113;--side-ink:#A9B8B6;--side-on:#1B272A;--side-strong:#FFFFFF;
+  --select:#F0B429;--warn:#F08A6E;--ok:#6FC79A;--flag-bg:#4A3A08;--flag-ink:#FBE9A8;
+  --c0:#22302F;--c1:#2F4F4B;--c2:#3F7A74;--c3:#62A9A6;--c4:#B7E3DC;--mid:#263234;--MK:#C9C9C9;--MKfg:#17262B;--OTH:#7C858B;}}
+:root[data-theme="dark"]{
+  --paper:#11181A;--sheet:#182124;--ink:#E6ECEA;--muted:#9FB0AF;--line:#2E3B3E;--soft:#1F2A2D;
+  --side:#0B1113;--side-ink:#A9B8B6;--side-on:#1B272A;--side-strong:#FFFFFF;
+  --select:#F0B429;--warn:#F08A6E;--ok:#6FC79A;--flag-bg:#4A3A08;--flag-ink:#FBE9A8;
+  --c0:#22302F;--c1:#2F4F4B;--c2:#3F7A74;--c3:#62A9A6;--c4:#B7E3DC;--mid:#263234;--MK:#C9C9C9;--MKfg:#17262B;--OTH:#7C858B;}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Archivo",system-ui,"Segoe UI",Arial,sans-serif;
+  font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--select);outline-offset:2px}
+
+/* ------------------------------------------------------------ app shell */
+#app{min-height:100%;display:grid;grid-template-columns:212px minmax(0,1fr)}
+.side{background:var(--side);color:var(--side-ink)}
+.side-in{position:sticky;top:env(safe-area-inset-top,0px);padding:20px 12px}
+.brand{color:var(--side-strong);font-size:17px;font-weight:650;font-stretch:84%;line-height:1.15;padding:0 10px 18px}
+.brand small{display:block;font-weight:400;font-size:12.5px;font-stretch:100%;color:var(--side-ink);margin-top:4px}
+.side nav{display:flex;flex-direction:column;gap:2px}
+.side nav button{display:flex;justify-content:space-between;gap:8px;align-items:center;text-align:left;border:0;background:none;
+  color:inherit;padding:8px 10px;border-radius:4px}
+.side nav button:hover{background:var(--side-on)}
+.side nav button[aria-current="page"]{background:var(--side-on);color:var(--side-strong);font-weight:600;box-shadow:inset 3px 0 0 var(--select)}
+.side nav .gap{height:14px}
+.pill{font-size:11.5px;padding:0 6px;border-radius:9px;background:var(--select);color:#17262B;font-weight:600}
+.content{min-width:0}
+.flag{background:var(--flag-bg);color:var(--flag-ink);padding:6px 28px;font-size:13px}
+.flag b{font-weight:650}
+.top{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:9px 28px;background:var(--sheet);border-bottom:1px solid var(--line)}
+.top .run{margin-left:auto;color:var(--muted);font-size:13px}
+.page{padding:26px 28px 72px;max-width:1260px}
+.phead{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:20px}
+.phead h1{font-size:31px;font-weight:650;font-stretch:78%;line-height:1.05;margin:0}
+.phead p{margin:6px 0 0;color:var(--muted);max-width:70ch}
+.crumbs{font-size:13px;color:var(--muted);margin-bottom:6px}
+.ctrls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.ctrls label{display:flex;gap:6px;align-items:center;color:var(--muted)}
+
+/* --------------------------------------------------------------- controls */
+select,input[type=number]{padding:6px 8px;border:1px solid var(--line);border-radius:4px;background:var(--sheet);color:var(--ink)}
+.btn{padding:6px 12px;border:1px solid var(--ink);border-radius:4px;background:var(--sheet)}
+.btn:hover{background:var(--soft)}
+.btn.primary{background:var(--ink);color:var(--sheet)}
+.btn.primary:hover{opacity:.88}
+.btn.quiet{border-color:var(--line)}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+.link{border:0;background:none;padding:0;color:inherit;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;font-weight:600;text-align:left}
+.link:hover{text-decoration-color:var(--ink)}
+.seg{display:inline-flex;flex-wrap:wrap;max-width:100%;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.seg button{border:0;background:var(--sheet);padding:6px 11px;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--sheet)}
+
+/* ----------------------------------------------------------------- blocks */
+.stack{display:grid;gap:18px}
+.grid2{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px;align-items:start}
+.grid2.even{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card{background:var(--sheet);border:1px solid var(--line);border-radius:4px;padding:16px 18px;min-width:0}
+.card h2{font-size:15px;font-weight:650;margin:0 0 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.card p{margin:4px 0}
+.sticky{position:sticky;top:calc(env(safe-area-inset-top,0px) + 14px)}
+.sub{color:var(--muted)}
+.small{font-size:12.5px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.stat{background:var(--sheet);padding:12px 16px}
+.stat span{display:block;color:var(--muted);font-size:12.5px}
+.stat b{display:block;font-size:24px;font-weight:600;font-stretch:82%;line-height:1.2}
+.stat small{display:block;color:var(--muted);font-size:12.5px}
+.stat:last-child{grid-column-end:-1}
+.stat b em{font-style:normal}
+.stat b em.long{display:block;font-size:14.5px;font-stretch:100%;font-weight:500;line-height:1.4;padding:3px 0}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px 16px}
+.kv div span{display:block;color:var(--muted);font-size:12.5px}
+.kv div b{font-weight:600;font-size:15px}
+.box{border:1px dashed var(--line);border-radius:4px;padding:10px 12px;background:var(--paper);font-size:13px}
+.assume{font-size:12.5px;color:var(--muted);border-left:2px dashed var(--ink);padding-left:10px;margin-top:10px}
+
+.tag{font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:2px;border:1.5px solid var(--ink);font-stretch:90%;white-space:nowrap}
+.tag.FACT{background:var(--ink);color:var(--sheet)}
+.tag.MEASUREMENT{background:var(--c1);border-color:var(--c3);color:#12323F}
+.tag.MODELLED{background:none}
+.tag.ASSUMPTION{background:none;border-style:dashed}
+.tag.SYN{border-color:var(--flag-ink);background:var(--flag-bg);color:var(--flag-ink);border-style:dotted}
+
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;color:var(--muted);border-bottom:1px solid var(--line);padding:6px 12px 6px 0;vertical-align:bottom;white-space:nowrap}
+td{padding:7px 12px 7px 0;border-bottom:1px solid var(--soft);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right}
+td small{color:var(--muted)}
+table.tight td{white-space:nowrap}
+table.c1 td:first-child{white-space:nowrap}
+.link{white-space:nowrap}
+tbody tr.pick:hover{background:var(--soft)}
+.sorth{border:0;background:none;padding:0;font-weight:600;color:var(--muted)}
+.sorth[aria-pressed="true"]{color:var(--ink)}
+.best{font-weight:650}
+.up{color:var(--ok)}.down{color:var(--warn)}
+.swatch{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+
+/* party composition strip */
+.strip{display:flex;height:14px;border-radius:2px;overflow:hidden;min-width:110px;background:var(--soft)}
+.strip i{display:block;height:100%}
+.strip + small{display:block;margin-top:3px}
+
+/* ward tiles */
+.tiles{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}
+.tile{aspect-ratio:1/0.82;border:1px solid rgba(23,38,43,.25);border-radius:3px;padding:4px 5px;text-align:left;line-height:1.15;
+  display:flex;flex-direction:column;justify-content:space-between;min-width:0;overflow:hidden}
+.tile:hover{filter:brightness(1.08)}
+.tile b{font-weight:650;font-size:13px}
+.tile span{font-size:11.5px;white-space:nowrap}
+.legend{margin-top:12px;font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.legend i{display:inline-block;width:14px;height:10px;margin-right:5px;border:1px solid rgba(23,38,43,.3);vertical-align:baseline}
+
+/* share bars */
+.row{display:grid;grid-template-columns:44px minmax(0,1fr) 150px;gap:10px;align-items:center;padding:4px 0}
+.track{position:relative;height:18px;background:var(--soft);border-radius:2px}
+.fill{position:absolute;left:0;top:0;bottom:0;border-radius:2px}
+.whisk{position:absolute;top:50%;height:2px;background:var(--ink);transform:translateY(-50%)}
+.whisk::before,.whisk::after{content:"";position:absolute;top:-4px;width:2px;height:10px;background:var(--ink)}
+.whisk::before{left:0}.whisk::after{right:0}
+.row .val{text-align:right;font-size:13px}
+.row .val small{color:var(--muted);font-size:12px;display:block}
+
+
+/* South Africa map */
+.samap{width:100%;height:auto;display:block}
+.samap.small{max-width:340px}
+.prov{stroke:var(--sheet);stroke-width:1.5;cursor:pointer;transition:filter .12s}
+.prov:hover,.prov:focus-visible{filter:brightness(1.12);stroke:var(--ink);stroke-width:2;outline:none}
+.prov.on{stroke:var(--select);stroke-width:4}
+.plabel{font-size:15px;font-weight:600;font-stretch:88%;text-anchor:middle;fill:var(--ink);pointer-events:none;paint-order:stroke;stroke:var(--sheet);stroke-width:4px;stroke-linejoin:round}
+.plabel.tiny{font-size:12px}
+.grid2.wide{grid-template-columns:minmax(0,2.2fr) minmax(0,1fr)}
+tr.grp th{padding-top:16px;color:var(--ink);font-size:12.5px;border-bottom:1px solid var(--line);background:none}
+.tiles.dense{gap:3px}
+.tiles.dense .tile{padding:2px 3px;aspect-ratio:1/1}
+.tiles.dense .tile span{display:none}
+.tiles.dense .tile b{font-size:11.5px}
+@media (prefers-reduced-motion:reduce){.prov{transition:none}}
+.form{display:grid;gap:10px}
+.form label{display:block;font-size:12.5px;color:var(--muted)}
+.form select,.form input{width:100%;margin-top:3px}
+.form .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.params{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px 20px}
+.params label{font-size:12.5px;color:var(--muted);display:block}
+.params input{width:92px;margin-top:3px}
+.layerrow{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;padding:12px 0;border-bottom:1px solid var(--soft);align-items:start}
+.layerrow:last-child{border-bottom:0}
+.layerrow input{margin-top:4px;width:16px;height:16px}
+.layerrow b{font-weight:600}
+.layerrow.off b{color:var(--muted)}
+.steps{display:grid;gap:18px}
+.step{display:grid;grid-template-columns:34px minmax(0,1fr);gap:14px}
+.step>i{font-style:normal;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--ink);display:grid;place-items:center;font-weight:650}
+.step.done>i{background:var(--ink);color:var(--sheet)}
+
+@media (max-width:920px){
+  #app{grid-template-columns:minmax(0,1fr)}
+  .side-in{position:static;padding:10px 12px 8px}
+  .brand{padding:0 6px 8px;font-size:15px}.brand small{display:none}
+  .side nav{flex-direction:row;overflow-x:auto;gap:4px;padding-bottom:4px}
+  .side nav button{white-space:nowrap;padding:7px 10px}
+  .side nav button[aria-current="page"]{box-shadow:inset 0 -3px 0 var(--select)}
+  .side nav .gap{display:none}
+  .flag,.top{padding-left:16px;padding-right:16px}
+  .top .run{margin-left:0}
+  .page{padding:18px 16px 56px}
+  .phead h1{font-size:26px}
+  .grid2,.grid2.even,.grid2.wide{grid-template-columns:minmax(0,1fr)}
+  .sticky{position:static}
+  .row{grid-template-columns:40px minmax(0,1fr) 132px}
+}
+@media (max-width:520px){.tile span{display:none}.tile{aspect-ratio:1/1}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+/* ============================================================================
+   Ward election intelligence: demonstration build, national coverage
+   Real: party names; province outlines (Natural Earth); every municipality, its
+         district, province and ward numbering (OpenUp, 2016 delimitation); the
+         election date and national counts.
+   Synthetic: every vote share, turnout, poll, event, candidate attribute and result.
+   ========================================================================== */
+const DATASET = "SYN-2026.10.03 (seed 20261104)";
+function rng(seed){let a=seed>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function norm(r){let u=0;while(u===0)u=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*r())}
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const logit=p=>Math.log(p/(1-p)), expit=x=>1/(1+Math.exp(-x));
+const softmax=l=>{const m=Math.max(...l);const e=l.map(v=>Math.exp(v-m));const s=e.reduce((a,b)=>a+b,0);return e.map(v=>v/s)};
+const renorm=a=>{const s=a.reduce((x,y)=>x+y,0);return a.map(v=>v/s)};
+const lnS=s=>s.map(v=>Math.log(Math.max(v,1e-4)));
+const argmax=a=>a.reduce((bi,v,i)=>v>a[bi]?i:bi,0);
+const Z80=1.2816;
+
+const PARTIES=[
+ {id:"ANC",name:"African National Congress",dark:1},{id:"DA",name:"Democratic Alliance",dark:1},
+ {id:"EFF",name:"Economic Freedom Fighters",dark:1},{id:"MK",name:"uMkhonto weSizwe Party",dark:1},
+ {id:"IFP",name:"Inkatha Freedom Party",dark:0},{id:"PA",name:"Patriotic Alliance",dark:1},
+ {id:"ASA",name:"ActionSA",dark:0},{id:"VF",name:"Freedom Front Plus",abbr:"FF+",dark:0},
+ {id:"OTH",name:"Other parties and independents",abbr:"Other",dark:1}];
+const NP=PARTIES.length, ab=i=>PARTIES[i].abbr||PARTIES[i].id;
+
+const PROVMAP={"w":760,"h":671,"prov":[{"code":"NC","d":"M287.6,213.9L291.7,215.0L291.6,229.5L296.6,231.4L298.2,228.9L301.2,216.3L304.4,216.6L307.6,213.5L309.4,207.7L321.8,209.2L320.8,212.4L315.3,211.4L315.0,214.5L318.6,215.7L315.0,222.1L317.7,226.0L317.2,233.0L325.6,235.6L331.1,240.0L327.2,246.3L343.0,254.0L346.7,252.9L349.4,255.3L351.0,260.6L348.3,264.9L345.2,273.1L353.8,278.3L351.6,284.2L351.9,289.9L355.2,292.2L355.0,298.0L368.3,295.0L370.0,300.1L366.3,306.1L370.1,310.1L369.7,313.2L373.4,316.4L377.5,311.3L377.9,306.4L381.1,302.4L380.2,294.4L385.8,291.3L386.7,295.2L393.7,295.1L396.2,296.2L387.9,306.4L392.0,316.3L395.6,314.8L395.4,317.2L391.2,327.6L388.0,338.0L389.3,344.7L379.5,366.3L365.3,396.2L368.4,402.1L379.6,408.9L380.2,411.7L385.3,413.6L390.8,424.6L396.3,428.8L397.0,431.2L403.3,437.7L416.0,445.8L416.7,453.1L418.5,455.5L417.8,462.3L415.1,470.6L410.8,477.4L404.7,476.1L393.6,480.3L384.4,485.7L375.1,486.4L373.1,494.2L372.5,502.0L365.0,502.7L356.9,504.7L356.6,506.3L348.3,503.1L343.8,506.9L341.4,503.1L336.4,500.0L323.0,500.8L318.1,504.3L313.1,511.5L308.1,516.0L306.2,511.3L302.4,509.8L294.0,508.6L287.2,505.7L281.4,499.3L273.1,495.0L266.4,509.7L263.9,511.7L264.5,520.1L258.7,527.2L253.3,529.7L247.2,528.1L239.8,529.6L234.0,535.1L228.7,536.6L223.6,540.8L220.2,548.4L208.9,552.0L207.0,554.0L205.2,561.5L201.7,564.4L194.5,563.6L188.9,565.4L179.3,556.5L175.5,547.9L173.6,538.4L179.5,531.8L176.2,526.9L166.5,535.6L161.0,536.4L156.6,539.7L152.4,540.7L148.9,550.0L146.2,547.2L146.8,541.1L144.0,533.1L147.1,529.1L146.1,521.2L139.3,518.3L134.4,512.7L126.2,511.7L128.1,504.2L127.9,495.4L125.7,491.2L124.8,480.6L122.1,475.8L120.6,466.2L121.7,462.7L122.1,451.5L117.8,450.0L113.0,443.9L105.1,438.5L100.8,441.3L98.4,440.0L95.0,447.9L91.0,454.5L86.9,456.5L81.0,454.1L75.0,462.3L69.6,473.4L65.4,466.7L50.5,437.1L43.4,419.4L32.6,383.5L23.1,363.2L11.5,344.3L10.0,343.1L11.8,340.8L18.0,336.4L20.9,335.2L22.4,335.8L23.9,334.6L25.3,331.6L25.6,328.8L26.3,324.9L27.7,322.6L29.3,317.9L31.9,314.9L37.4,312.9L41.6,315.5L43.4,318.1L44.1,321.5L45.9,323.2L48.9,323.1L51.0,325.2L52.2,329.5L52.0,332.6L50.3,334.5L50.5,337.1L52.7,340.2L53.6,343.3L55.0,347.2L62.6,349.5L66.3,350.8L72.8,351.3L78.8,353.0L84.5,356.2L93.9,356.9L106.9,355.3L117.6,356.0L126.1,359.0L132.2,359.6L136.0,357.7L137.6,354.9L137.1,351.3L139.0,349.0L143.2,348.1L146.6,345.3L149.2,340.9L155.1,337.2L164.4,334.4L169.0,334.5L169.0,327.3L169.0,304.4L169.0,281.5L169.0,258.6L169.0,235.7L169.0,212.8L169.0,189.9L169.0,167.0L169.0,145.4L171.2,146.9L185.5,158.4L189.3,164.4L191.2,168.3L197.3,182.2L201.9,194.6L205.6,204.0L205.9,208.3L206.4,212.5L206.9,214.6L206.6,216.8L204.0,221.9L201.3,225.9L198.1,231.2L197.8,238.2L198.8,246.5L200.8,250.7L203.2,252.0L209.1,250.0L212.9,250.6L218.1,252.2L235.4,251.2L237.5,251.7L244.0,252.3L246.2,251.6L248.2,249.9L250.4,244.9L252.4,243.3L256.1,242.4L260.4,241.1L264.0,238.2L269.7,228.4L281.1,219.6L284.6,217.5L286.9,215.2L287.6,213.9Z","lx":233,"ly":386},{"code":"WC","d":"M333.5,619.5L331.3,619.3L320.7,623.7L317.0,624.3L301.6,623.4L293.1,620.6L284.9,620.6L278.6,622.9L271.0,623.7L250.4,639.3L239.8,639.3L230.7,641.1L226.1,641.1L217.6,638.9L214.5,639.0L209.6,640.0L204.8,642.7L193.8,643.9L189.5,646.3L170.8,660.5L166.6,660.0L163.2,659.0L153.5,658.9L142.5,651.3L138.3,651.8L139.5,649.5L139.8,645.4L137.5,642.6L135.9,641.3L131.6,641.6L129.3,638.1L122.7,637.8L120.5,638.7L117.3,638.8L117.0,635.4L117.3,633.2L117.1,629.8L116.3,625.7L113.7,624.4L111.8,623.8L107.1,624.1L103.9,624.5L102.4,625.7L100.7,628.8L100.7,638.0L98.4,635.3L95.7,629.8L94.9,623.9L95.8,617.0L100.8,614.3L100.4,609.6L99.4,605.6L93.8,595.1L91.6,590.3L86.9,587.1L83.3,579.3L79.6,576.5L78.0,571.0L74.4,566.7L73.2,559.8L75.2,555.8L78.3,553.6L81.5,557.1L85.5,555.7L91.2,550.7L94.5,543.2L94.7,531.0L93.9,523.5L89.4,503.9L87.3,499.4L77.1,485.4L69.6,473.4L75.0,462.3L81.0,454.1L86.9,456.5L91.0,454.5L95.0,447.9L98.4,440.0L100.8,441.3L105.1,438.5L113.0,443.9L117.8,450.0L122.1,451.5L121.7,462.7L120.6,466.2L122.1,475.8L124.8,480.6L125.7,491.2L127.9,495.4L128.1,504.2L126.2,511.7L134.4,512.7L139.3,518.3L146.1,521.2L147.1,529.1L144.0,533.1L146.8,541.1L146.2,547.2L148.9,550.0L152.4,540.7L156.6,539.7L161.0,536.4L166.5,535.6L176.2,526.9L179.5,531.8L173.6,538.4L175.5,547.9L179.3,556.5L188.9,565.4L194.5,563.6L201.7,564.4L205.2,561.5L207.0,554.0L208.9,552.0L220.2,548.4L223.6,540.8L228.7,536.6L234.0,535.1L239.8,529.6L247.2,528.1L253.3,529.7L258.7,527.2L264.5,520.1L263.9,511.7L266.4,509.7L273.1,495.0L281.4,499.3L287.2,505.7L294.0,508.6L302.4,509.8L306.2,511.3L308.1,516.0L313.1,511.5L318.1,504.3L323.0,500.8L336.4,500.0L341.4,503.1L343.8,506.9L348.3,503.1L356.6,506.3L355.8,509.8L358.2,514.7L355.5,517.3L354.0,523.6L351.3,526.1L344.8,528.9L339.0,527.2L335.3,529.5L332.0,533.9L319.6,535.4L315.9,539.0L315.6,543.2L317.5,551.5L321.6,556.7L319.7,558.7L313.7,558.8L305.0,562.9L301.2,569.4L301.2,573.6L293.5,585.5L293.7,589.3L306.3,588.7L316.7,589.2L324.7,590.9L330.3,594.2L332.8,601.8L324.6,605.3L321.5,608.8L329.5,609.6L335.9,613.5L333.5,619.5Z","lx":197,"ly":569},{"code":"NW","d":"M287.6,213.9L288.8,212.0L292.8,201.0L295.8,191.8L296.8,187.5L299.5,180.4L302.8,175.9L306.0,173.6L307.6,173.0L311.7,171.7L316.9,170.6L322.5,171.9L328.4,174.6L335.2,179.2L342.0,184.9L345.2,187.8L348.6,189.1L354.7,189.6L358.7,189.5L364.9,195.1L368.0,195.5L375.0,197.2L383.7,198.9L389.1,198.7L394.9,195.7L399.2,195.6L404.6,195.8L410.6,195.0L415.0,193.7L418.3,191.0L421.3,188.1L424.7,179.4L426.6,172.4L429.7,164.4L433.4,153.5L434.7,146.0L436.1,143.9L441.4,141.6L445.9,140.0L457.9,137.0L458.5,143.6L460.5,147.2L468.2,148.0L474.6,150.0L482.5,146.0L486.1,142.7L487.5,149.1L493.2,156.4L498.1,157.2L501.5,159.9L507.0,159.7L509.6,161.7L511.5,156.7L515.1,155.4L525.8,157.0L528.5,156.1L534.5,157.4L540.0,160.9L535.6,162.5L535.8,167.2L540.4,168.5L543.3,173.2L540.6,175.1L534.7,176.0L530.2,175.4L527.8,178.0L531.5,181.1L528.4,187.4L527.5,198.4L524.4,200.8L517.8,202.1L513.9,198.2L505.7,202.4L505.1,208.7L502.8,214.7L498.1,215.9L499.6,223.1L493.6,228.0L495.4,234.3L496.0,241.3L500.1,240.0L510.6,241.8L511.3,246.3L508.4,248.5L506.6,253.3L503.4,254.4L498.9,252.7L493.0,255.9L487.0,256.2L481.2,254.2L469.0,259.8L462.1,267.0L458.5,268.9L461.9,272.9L460.3,278.0L451.2,281.7L450.3,285.0L440.0,292.7L434.4,291.8L431.0,289.7L423.8,294.5L421.1,293.5L414.0,296.4L405.8,302.2L405.1,305.0L400.8,307.6L397.4,314.3L395.6,314.8L392.0,316.3L387.9,306.4L396.2,296.2L393.7,295.1L386.7,295.2L385.8,291.3L380.2,294.4L381.1,302.4L377.9,306.4L377.5,311.3L373.4,316.4L369.7,313.2L370.1,310.1L366.3,306.1L370.0,300.1L368.3,295.0L355.0,298.0L355.2,292.2L351.9,289.9L351.6,284.2L353.8,278.3L345.2,273.1L348.3,264.9L351.0,260.6L349.4,255.3L346.7,252.9L343.0,254.0L327.2,246.3L331.1,240.0L325.6,235.6L317.2,233.0L317.7,226.0L315.0,222.1L318.6,215.7L315.0,214.5L315.3,211.4L320.8,212.4L321.8,209.2L309.4,207.7L307.6,213.5L304.4,216.6L301.2,216.3L298.2,228.9L296.6,231.4L291.6,229.5L291.7,215.0L287.6,213.9Z","lx":418,"ly":222},{"code":"FS","d":"M568.6,351.2L566.8,350.3L562.5,346.7L560.7,344.6L559.4,342.1L558.2,341.2L556.3,341.9L551.3,343.0L540.5,347.4L533.8,351.4L528.2,356.2L522.4,358.1L518.1,359.7L514.8,365.2L511.6,370.3L508.8,374.9L507.1,377.0L505.6,378.3L504.2,381.3L501.1,386.2L498.3,389.5L494.4,391.3L489.3,393.6L487.6,395.0L487.4,396.9L489.2,401.5L490.9,406.0L493.7,411.2L495.8,415.0L499.1,419.7L501.0,422.4L500.8,427.0L501.4,428.6L502.3,430.1L498.4,439.4L491.0,440.0L485.5,441.7L481.5,448.0L475.2,447.3L471.6,449.0L464.1,447.7L459.9,443.0L454.0,444.2L449.2,441.3L442.7,440.7L427.7,449.3L423.6,448.0L422.5,445.4L416.0,445.8L403.3,437.7L397.0,431.2L396.3,428.8L390.8,424.6L385.3,413.6L380.2,411.7L379.6,408.9L368.4,402.1L365.3,396.2L379.5,366.3L389.3,344.7L388.0,338.0L391.2,327.6L395.4,317.2L395.6,314.8L397.4,314.3L400.8,307.6L405.1,305.0L405.8,302.2L414.0,296.4L421.1,293.5L423.8,294.5L431.0,289.7L434.4,291.8L440.0,292.7L450.3,285.0L451.2,281.7L460.3,278.0L461.9,272.9L458.5,268.9L462.1,267.0L469.0,259.8L481.2,254.2L487.0,256.2L493.0,255.9L498.9,252.7L503.4,254.4L506.6,253.3L508.4,248.5L511.3,246.3L514.0,247.7L524.7,245.6L528.7,242.9L532.0,250.4L541.6,254.3L547.4,256.4L549.2,258.9L558.9,260.3L559.4,257.5L567.1,261.8L573.2,259.6L577.6,261.4L580.7,267.7L583.1,266.9L595.0,272.8L596.9,277.4L602.8,285.6L609.8,283.1L607.3,286.5L609.6,291.0L605.8,294.2L607.6,301.6L603.2,313.8L605.5,317.5L601.6,324.2L597.0,325.1L593.4,329.7L585.6,333.9L583.6,338.8L573.8,340.9L568.6,351.2Z","lx":479,"ly":342},{"code":"GT","d":"M541.6,254.3L532.0,250.4L528.7,242.9L524.7,245.6L514.0,247.7L511.3,246.3L510.6,241.8L500.1,240.0L496.0,241.3L495.4,234.3L493.6,228.0L499.6,223.1L498.1,215.9L502.8,214.7L505.1,208.7L505.7,202.4L513.9,198.2L517.8,202.1L524.4,200.8L527.5,198.4L528.4,187.4L531.5,181.1L527.8,178.0L530.2,175.4L534.7,176.0L540.6,175.1L543.3,173.2L549.5,173.5L553.8,170.8L559.9,169.6L557.3,165.0L563.9,162.8L565.3,168.6L558.4,174.0L558.3,184.0L560.2,191.1L564.4,193.2L568.7,189.4L566.2,184.8L571.5,185.3L574.0,191.6L572.4,201.6L569.7,203.0L569.2,208.6L565.1,209.0L558.6,207.0L556.2,211.4L552.6,212.5L554.0,219.7L562.4,225.8L566.4,224.2L568.9,229.0L565.9,230.3L564.6,234.9L559.0,234.5L553.9,237.5L552.8,239.9L548.1,242.3L548.4,247.4L543.7,251.0L541.6,254.3Z","lx":535,"ly":214},{"code":"MP","d":"M702.4,103.5L703.7,107.5L706.0,117.6L707.9,122.4L708.6,124.8L709.5,129.1L709.4,138.3L709.4,148.9L709.5,160.7L709.5,170.4L709.2,175.4L709.4,189.4L706.5,196.7L706.9,202.4L707.8,206.2L706.6,206.7L704.3,207.4L693.9,201.5L683.8,195.3L682.3,195.1L680.2,195.8L674.4,200.3L669.1,207.4L666.6,213.4L662.6,219.6L656.2,229.6L655.6,231.8L655.5,239.9L655.8,247.7L656.4,248.8L659.8,249.1L662.3,255.5L667.9,265.6L677.4,272.1L671.9,276.5L664.2,278.1L660.7,275.8L657.6,277.0L649.9,274.1L646.0,275.8L640.1,275.7L639.1,274.0L632.7,275.4L626.1,279.3L616.9,278.6L609.8,283.1L602.8,285.6L596.9,277.4L595.0,272.8L583.1,266.9L580.7,267.7L577.6,261.4L573.2,259.6L567.1,261.8L559.4,257.5L558.9,260.3L549.2,258.9L547.4,256.4L541.6,254.3L543.7,251.0L548.4,247.4L548.1,242.3L552.8,239.9L553.9,237.5L559.0,234.5L564.6,234.9L565.9,230.3L568.9,229.0L566.4,224.2L562.4,225.8L554.0,219.7L552.6,212.5L556.2,211.4L558.6,207.0L565.1,209.0L569.2,208.6L569.7,203.0L572.4,201.6L574.0,191.6L571.5,185.3L566.2,184.8L568.7,189.4L564.4,193.2L560.2,191.1L558.3,184.0L558.4,174.0L565.3,168.6L563.9,162.8L557.3,165.0L547.7,168.4L546.0,166.6L550.7,162.9L558.4,159.5L557.6,157.0L563.0,153.9L570.5,154.6L573.7,160.6L577.0,164.2L576.8,170.7L579.5,173.2L582.5,172.5L584.6,177.9L587.1,176.2L591.0,177.7L598.8,178.0L605.3,175.9L609.7,177.2L615.0,174.6L620.3,174.0L620.4,164.6L621.7,160.6L625.6,163.2L628.4,158.0L628.3,149.4L635.8,150.6L639.0,149.2L642.2,154.2L649.7,147.5L652.5,141.7L650.4,137.2L653.1,135.4L654.5,129.3L664.0,135.3L675.0,134.1L676.8,131.6L672.4,124.9L673.9,121.4L667.8,121.9L667.4,115.2L670.1,110.4L674.2,107.2L676.3,110.6L683.7,108.2L685.2,106.6L697.2,108.0L700.2,103.6L702.4,103.5Z","lx":633,"ly":202},{"code":"LIM","d":"M702.4,103.5L700.2,103.6L697.2,108.0L685.2,106.6L683.7,108.2L676.3,110.6L674.2,107.2L670.1,110.4L667.4,115.2L667.8,121.9L673.9,121.4L672.4,124.9L676.8,131.6L675.0,134.1L664.0,135.3L654.5,129.3L653.1,135.4L650.4,137.2L652.5,141.7L649.7,147.5L642.2,154.2L639.0,149.2L635.8,150.6L628.3,149.4L628.4,158.0L625.6,163.2L621.7,160.6L620.4,164.6L620.3,174.0L615.0,174.6L609.7,177.2L605.3,175.9L598.8,178.0L591.0,177.7L587.1,176.2L584.6,177.9L582.5,172.5L579.5,173.2L576.8,170.7L577.0,164.2L573.7,160.6L570.5,154.6L563.0,153.9L557.6,157.0L558.4,159.5L550.7,162.9L546.0,166.6L547.7,168.4L557.3,165.0L559.9,169.6L553.8,170.8L549.5,173.5L543.3,173.2L540.4,168.5L535.8,167.2L535.6,162.5L540.0,160.9L534.5,157.4L528.5,156.1L525.8,157.0L515.1,155.4L511.5,156.7L509.6,161.7L507.0,159.7L501.5,159.9L498.1,157.2L493.2,156.4L487.5,149.1L486.1,142.7L482.5,146.0L474.6,150.0L468.2,148.0L460.5,147.2L458.5,143.6L457.9,137.0L460.3,135.4L462.6,131.8L467.8,125.8L474.3,120.7L477.6,117.8L483.7,93.2L484.4,90.2L488.9,83.7L491.6,80.9L493.4,80.9L495.9,79.2L499.1,75.8L503.0,73.7L507.5,72.9L510.4,70.6L511.7,66.9L514.0,65.1L517.3,65.2L519.2,64.1L519.6,61.6L521.6,59.5L525.1,57.7L527.0,55.7L527.1,53.3L531.3,47.4L539.5,38.2L547.2,33.0L554.5,32.0L561.4,30.0L567.9,27.2L572.6,22.8L575.7,16.8L580.9,13.4L591.5,12.4L592.1,12.4L604.9,10.0L615.7,12.0L628.6,17.5L640.8,19.4L652.1,17.8L661.3,17.4L668.4,18.3L674.0,20.2L678.1,23.2L678.3,25.9L678.6,27.1L680.8,34.3L684.0,44.9L686.1,54.8L689.0,68.3L688.9,75.9L689.7,78.8L692.3,82.4L695.5,88.6L696.6,92.2L697.7,94.8L701.1,99.9L702.4,103.5Z","lx":588,"ly":95},{"code":"KZN","d":"M677.4,272.1L686.2,275.0L698.5,275.8L708.2,275.6L707.7,268.8L708.6,257.8L709.9,250.4L711.2,250.1L713.8,250.8L715.2,251.6L719.1,251.2L726.0,252.7L731.6,252.5L736.6,252.4L745.1,252.1L750.0,252.1L748.3,263.9L741.9,282.5L739.7,291.1L734.2,321.6L727.0,336.9L723.0,343.3L711.3,354.5L708.1,356.8L705.2,358.2L700.1,359.5L680.2,382.2L672.7,393.2L666.1,409.1L659.6,417.9L649.9,436.6L641.3,451.0L633.1,464.2L628.8,469.5L625.7,462.3L622.9,458.4L618.9,457.0L610.8,450.7L602.2,449.6L596.5,446.1L589.5,448.0L585.0,446.0L582.4,442.8L584.1,436.7L588.4,433.5L588.5,430.6L582.9,428.9L579.6,423.2L580.3,418.2L575.7,413.0L576.4,412.6L579.5,410.1L580.6,404.0L581.5,398.8L583.8,396.3L586.3,394.6L588.3,391.9L590.8,385.5L592.5,379.2L592.6,376.6L591.8,374.0L590.2,371.2L588.6,367.4L586.8,366.8L583.1,364.7L577.7,360.4L573.0,356.7L568.6,351.2L573.8,340.9L583.6,338.8L585.6,333.9L593.4,329.7L597.0,325.1L601.6,324.2L605.5,317.5L603.2,313.8L607.6,301.6L605.8,294.2L609.6,291.0L607.3,286.5L609.8,283.1L616.9,278.6L626.1,279.3L632.7,275.4L639.1,274.0L640.1,275.7L646.0,275.8L649.9,274.1L657.6,277.0L660.7,275.8L664.2,278.1L671.9,276.5L677.4,272.1Z","lx":653,"ly":348},{"code":"EC","d":"M575.7,413.0L580.3,418.2L579.6,423.2L582.9,428.9L588.5,430.6L588.4,433.5L584.1,436.7L582.4,442.8L585.0,446.0L589.5,448.0L596.5,446.1L602.2,449.6L610.8,450.7L618.9,457.0L622.9,458.4L625.7,462.3L628.8,469.5L618.8,482.3L612.4,487.5L608.2,489.9L596.8,500.4L580.8,517.3L568.6,532.3L550.3,549.3L539.7,556.8L523.8,571.4L519.3,573.6L501.4,587.2L488.5,595.5L467.6,605.0L459.3,607.7L439.5,605.2L431.3,606.6L424.4,612.4L423.7,620.7L420.8,621.9L416.5,621.5L402.6,618.1L395.1,618.7L390.7,623.2L387.2,628.8L376.8,629.1L358.2,623.3L336.4,619.7L333.5,619.5L335.9,613.5L329.5,609.6L321.5,608.8L324.6,605.3L332.8,601.8L330.3,594.2L324.7,590.9L316.7,589.2L306.3,588.7L293.7,589.3L293.5,585.5L301.2,573.6L301.2,569.4L305.0,562.9L313.7,558.8L319.7,558.7L321.6,556.7L317.5,551.5L315.6,543.2L315.9,539.0L319.6,535.4L332.0,533.9L335.3,529.5L339.0,527.2L344.8,528.9L351.3,526.1L354.0,523.6L355.5,517.3L358.2,514.7L355.8,509.8L356.6,506.3L356.9,504.7L365.0,502.7L372.5,502.0L373.1,494.2L375.1,486.4L384.4,485.7L393.6,480.3L404.7,476.1L410.8,477.4L415.1,470.6L417.8,462.3L418.5,455.5L416.7,453.1L416.0,445.8L422.5,445.4L423.6,448.0L427.7,449.3L442.7,440.7L449.2,441.3L454.0,444.2L459.9,443.0L464.1,447.7L471.6,449.0L475.2,447.3L481.5,448.0L485.5,441.7L491.0,440.0L498.4,439.4L502.3,430.1L502.5,430.5L503.4,431.0L504.5,431.6L507.2,433.0L507.8,433.8L509.7,435.4L511.6,438.2L515.0,442.1L518.9,445.1L525.6,446.3L530.9,447.3L532.6,446.7L534.4,444.3L535.8,441.3L536.3,437.4L538.0,435.3L544.2,425.5L547.7,421.8L549.8,421.6L552.5,420.9L556.0,420.6L558.6,420.9L559.2,420.7L563.2,419.5L570.6,416.2L574.0,414.2L575.7,413.0Z","lx":460,"ly":525}]};      // province outlines: Natural Earth 1:50m, public domain
+const MUNI_RAW=[["FS162","Kopanong","FS","DC16","Xhariep",8,"41602",15663],["BUF","Buffalo City","EC",null,null,50,"29200",2752],["NMA","Nelson Mandela Bay","EC",null,null,60,"29300",1958],["MAN","Mangaung","FS",null,null,50,"49400",9899],["EKU","Ekurhuleni","GT",null,null,112,"79700",1979],["JHB","City of Johannesburg","GT",null,null,135,"79800",1648],["TSH","City of Tshwane","GT",null,null,107,"79900",6310],["ETH","eThekwini","KZN",null,null,110,"59500",2559],["CPT","City of Cape Town","WC",null,null,116,"19100",2446],["EC104","Makana","EC","DC10","Sarah Baartman",14,"21004",4378],["EC105","Ndlambe","EC","DC10","Sarah Baartman",10,"21005",1841],["EC121","Mbhashe","EC","DC12","Amathole",32,"21201",3305],["EC122","Mnquma","EC","DC12","Amathole",31,"21202",3139],["EC131","Inxuba Yethemba","EC","DC13","Chris Hani",9,"21301",11672],["EC137","Engcobo","EC","DC13","Chris Hani",20,"21307",2486],["EC141","Elundini","EC","DC14","Joe Gqabi",17,"21401",5024],["EC142","Senqu","EC","DC14","Joe Gqabi",17,"21402",7336],["EC153","Ngquza Hill","EC","DC15","O.R.Tambo",32,"21503",2479],["EC154","Port St Johns","EC","DC15","O.R.Tambo",20,"21504",1292],["EC155","Nyandeni","EC","DC15","O.R.Tambo",32,"21505",2476],["EC156","Mhlontlo","EC","DC15","O.R.Tambo",26,"21506",2883],["EC441","Matatiele","EC","DC44","Alfred Nzo",26,"24401",4357],["FS161","Letsemeng","FS","DC16","Xhariep",6,"41601",9841],["FS163","Mohokare","FS","DC16","Xhariep",6,"41603",8785],["FS181","Masilonyana","FS","DC18","Lejweleputswa",10,"41801",6627],["FS182","Tokologo","FS","DC18","Lejweleputswa",4,"41802",9339],["FS183","Tswelopele","FS","DC18","Lejweleputswa",8,"41803",6534],["FS184","Matjhabeng","FS","DC18","Lejweleputswa",36,"41804",5699],["FS185","Nala","FS","DC18","Lejweleputswa",12,"41805",4135],["FS191","Setsoto","FS","DC19","Thabo Mofutsanyane",17,"41901",5439],["FS192","Dihlabeng","FS","DC19","Thabo Mofutsanyane",20,"41902",4875],["FS193","Nketoana","FS","DC19","Thabo Mofutsanyane",9,"41903",5620],["FS195","Phumelela","FS","DC19","Thabo Mofutsanyane",8,"41905",8209],["FS196","Mantsopa","FS","DC19","Thabo Mofutsanyane",9,"41906",4296],["FS201","Moqhaka","FS","DC20","Fezile Dabi",23,"42001",7937],["FS203","Ngwathe","FS","DC20","Fezile Dabi",18,"42003",7067],["FS204","Metsimaholo","FS","DC20","Fezile Dabi",21,"42004",1720],["FS205","Mafube","FS","DC20","Fezile Dabi",9,"42005",3978],["GT481","Mogale City","GT","DC48","West Rand",39,"74801",1345],["GT484","Merafong City","GT","DC48","West Rand",28,"74804",1634],["KZN212","Umdoni","KZN","DC21","Ugu",19,"52102",995],["KZN214","uMuziwabantu","KZN","DC21","Ugu",10,"52104",1091],["KZN216","Ray Nkonyeni","KZN","DC21","Ugu",36,"52106",1489],["KZN235","Okhahlamba","KZN","DC23","Uthukela",15,"52305",3976],["KZN241","Endumeni","KZN","DC24","Umzinyathi",7,"52401",1613],["KZN242","Nqutu","KZN","DC24","Umzinyathi",17,"52402",1965],["KZN252","Newcastle","KZN","DC25","Amajuba",34,"52502",1859],["KZN253","Emadlangeni","KZN","DC25","Amajuba",6,"52503",3545],["KZN254","Dannhauser","KZN","DC25","Amajuba",13,"52504",1710],["KZN261","eDumbe","KZN","DC26","Zululand",8,"52601",1946],["KZN262","uPhongolo","KZN","DC26","Zululand",15,"52602",3115],["KZN263","Abaqulusi","KZN","DC26","Zululand",22,"52603",4320],["KZN265","Nongoma","KZN","DC26","Zululand",21,"52605",2185],["KZN266","Ulundi","KZN","DC26","Zululand",24,"52606",3255],["KZN272","Jozini","KZN","DC27","Umkhanyakude",20,"52702",3448],["KZN275","Mtubatuba","KZN","DC27","Umkhanyakude",20,"52705",1973],["KZN284","uMlalazi","KZN","DC28","Uthungulu",27,"52804",2217],["KZN286","Nkandla","KZN","DC28","Uthungulu",14,"52806",1830],["KZN291","Mandeni","KZN","DC29","iLembe",18,"52901",546],["KZN292","KwaDukuza","KZN","DC29","iLembe",29,"52902",736],["KZN293","Ndwedwe","KZN","DC29","iLembe",19,"52903",1094],["KZN294","Maphumulo","KZN","DC29","iLembe",11,"52904",897],["KZN434","Ubuhlebezwe","KZN","DC43","Harry Gwala",14,"54304",1671],["LIM331","Greater Giyani","LIM","DC33","Mopani",31,"93301",4181],["LIM332","Greater Letaba","LIM","DC33","Mopani",30,"93302",1895],["LIM333","Greater Tzaneen","LIM","DC33","Mopani",35,"93303",2903],["LIM334","Ba-Phalaborwa","LIM","DC33","Mopani",19,"93304",7506],["LIM335","Maruleng","LIM","DC33","Mopani",14,"93305",3570],["LIM355","Lepele-Nkumpi","LIM","DC35","Capricorn",30,"93505",3492],["LIM361","Thabazimbi","LIM","DC36","Waterberg",12,"93601",11214],["LIM362","Lephalale","LIM","DC36","Waterberg",13,"93602",13826],["LIM366","Bela-Bela","LIM","DC36","Waterberg",9,"93606",3413],["LIM367","Mogalakwena","LIM","DC36","Waterberg",32,"93607",6170],["LIM471","Ephraim Mogale","LIM","DC47","Sekhukhune",16,"94701",2016],["LIM472","Elias Motsoaledi","LIM","DC47","Sekhukhune",31,"94702",3721],["LIM473","Makhuduthamaga","LIM","DC47","Sekhukhune",31,"94703",2114],["MP301","Chief Albert Luthuli","MP","DC30","Gert Sibande",25,"83001",5570],["MP302","Msukaligwa","MP","DC30","Gert Sibande",19,"83002",6027],["MP303","Mkhondo","MP","DC30","Gert Sibande",19,"83003",4891],["MP304","Dr Pixley Ka Isaka Seme","MP","DC30","Gert Sibande",11,"83004",5236],["MP305","Lekwa","MP","DC30","Gert Sibande",15,"83005",4565],["MP306","Dipaleseng","MP","DC30","Gert Sibande",6,"83006",2649],["MP307","Govan Mbeki","MP","DC30","Gert Sibande",32,"83007",2960],["MP311","Victor Khanye","MP","DC31","Nkangala",9,"83101",1571],["MP312","Emalahleni","MP","DC31","Nkangala",34,"83102",2683],["MP313","Steve Tshwete","MP","DC31","Nkangala",29,"83103",3984],["MP314","Emakhazeni","MP","DC31","Nkangala",8,"83104",4745],["MP315","Thembisile","MP","DC31","Nkangala",32,"83105",2389],["MP321","Thaba Chweu","MP","DC32","Ehlanzeni",14,"83201",5731],["MP324","Nkomazi","MP","DC32","Ehlanzeni",33,"83204",4796],["NW371","Moretele","NW","DC37","Bojanala",26,"63701",1501],["NW372","Madibeng","NW","DC37","Bojanala",41,"63702",3728],["NW373","Rustenburg","NW","DC37","Bojanala",45,"63703",3423],["NW374","Kgetlengrivier","NW","DC37","Bojanala",8,"63704",3981],["NW375","Moses Kotane","NW","DC37","Bojanala",34,"63705",5738],["NW381","Ratlou","NW","DC38","Ngaka Modiri Molema",14,"63801",4893],["NW382","Tswaing","NW","DC38","Ngaka Modiri Molema",15,"63802",5885],["EC124","Amahlathi","EC","DC12","Amathole",15,"21204",4508],["EC442","Umzimvubu","EC","DC44","Alfred Nzo",27,"24402",2581],["EC443","Mbizana","EC","DC44","Alfred Nzo",31,"24403",2418],["EC444","Ntabankulu","EC","DC44","Alfred Nzo",17,"24404",1386],["KZN213","Umzumbe","KZN","DC21","Ugu",20,"52103",1222],["KZN221","uMshwathi","KZN","DC22","Umgungundlovu",14,"52201",1868],["KZN226","Mkhambathini","KZN","DC22","Umgungundlovu",7,"52206",869],["KZN227","Richmond","KZN","DC22","Umgungundlovu",7,"52207",1233],["KZN244","Msinga","KZN","DC24","Umzinyathi",18,"52404",2378],["KZN435","Umzimkhulu","KZN","DC43","Harry Gwala",22,"54305",2438],["NW383","Mafikeng","NW","DC38","Ngaka Modiri Molema",35,"63803",3653],["NW384","Ditsobotla","NW","DC38","Ngaka Modiri Molema",20,"63804",6399],["NW385","Ramotshere Moiloa","NW","DC38","Ngaka Modiri Molema",19,"63805",7338],["NW392","Naledi","NW","DC39","Dr Ruth Segomotsi Mompati",10,"63902",7042],["NW393","Mamusa","NW","DC39","Dr Ruth Segomotsi Mompati",9,"63903",3620],["NW394","Greater Taung","NW","DC39","Dr Ruth Segomotsi Mompati",24,"63904",5648],["NW396","Lekwa-Teemane","NW","DC39","Dr Ruth Segomotsi Mompati",8,"63906",3659],["NW397","Kagisano/Molopo","NW","DC39","Dr Ruth Segomotsi Mompati",15,"63907",23873],["NW403","City of Matlosana","NW","DC40","Dr Kenneth Kaunda",39,"64003",3609],["NW404","Maquassi Hills","NW","DC40","Dr Kenneth Kaunda",11,"64004",4678],["NC061","Richtersveld","NC","DC6","Namakwa",4,"30601",9621],["NC062","Nama Khoi","NC","DC6","Namakwa",9,"30602",18013],["NC064","Kamiesberg","NC","DC6","Namakwa",4,"30604",14223],["NC065","Hantam","NC","DC6","Namakwa",5,"30605",39120],["NC066","Karoo Hoogland","NC","DC6","Namakwa",4,"30606",30254],["NC067","Khâi-Ma","NC","DC6","Namakwa",4,"30607",15734],["NC071","Ubuntu","NC","DC7","Pixley ka Seme",4,"30701",20410],["NC072","Umsobomvu","NC","DC7","Pixley ka Seme",6,"30702",6820],["NC073","Emthanjeni","NC","DC7","Pixley ka Seme",8,"30703",13485],["NC074","Kareeberg","NC","DC7","Pixley ka Seme",4,"30704",17719],["NC075","Renosterberg","NC","DC7","Pixley ka Seme",4,"30705",5535],["NC076","Thembelihle","NC","DC7","Pixley ka Seme",4,"30706",8033],["NC077","Siyathemba","NC","DC7","Pixley ka Seme",5,"30707",14745],["NC078","Siyancuma","NC","DC7","Pixley ka Seme",7,"30708",16775],["NC082","Kai !Garib","NC","DC8","Z F Mgcawu",10,"30802",26412],["NC084","!Kheis","NC","DC8","Z F Mgcawu",4,"30804",11121],["NC085","Tsantsabane","NC","DC8","Z F Mgcawu",7,"30805",18318],["NC086","Kgatelopele","NC","DC8","Z F Mgcawu",4,"30806",2482],["NC091","Sol Plaatjie","NC","DC9","Frances Baard",33,"30901",3150],["NC092","Dikgatlong","NC","DC9","Frances Baard",7,"30902",7327],["NC093","Magareng","NC","DC9","Frances Baard",5,"30903",1549],["NC094","Phokwane","NC","DC9","Frances Baard",10,"30904",829],["NC452","Ga-Segonyana","NC","DC45","John Taolo Gaetsewe",14,"34502",4502],["NC453","Gamagara","NC","DC45","John Taolo Gaetsewe",7,"34503",2652],["WC011","Matzikama","WC","DC1","West Coast",8,"10101",12993],["WC012","Cederberg","WC","DC1","West Coast",6,"10102",8013],["WC013","Bergrivier","WC","DC1","West Coast",7,"10103",4409],["WC022","Witzenberg","WC","DC2","Cape Winelands",12,"10202",10759],["WC023","Drakenstein","WC","DC2","Cape Winelands",33,"10203",1538],["WC024","Stellenbosch","WC","DC2","Cape Winelands",22,"10204",831],["WC025","Breede Valley","WC","DC2","Cape Winelands",21,"10205",3835],["WC026","Langeberg","WC","DC2","Cape Winelands",12,"10206",4519],["WC031","Theewaterskloof","WC","DC3","Overberg",14,"10301",3260],["WC033","Cape Agulhas","WC","DC3","Overberg",6,"10303",3471],["WC034","Swellendam","WC","DC3","Overberg",6,"10304",3836],["WC041","Kannaland","WC","DC4","Eden",4,"10401",4767],["WC042","Hessequa","WC","DC4","Eden",9,"10402",5734],["WC043","Mossel Bay","WC","DC4","Eden",14,"10403",2002],["WC044","George","WC","DC4","Eden",27,"10404",5193],["WC045","Oudtshoorn","WC","DC4","Eden",13,"10405",3542],["WC047","Bitou","WC","DC4","Eden",7,"10407",992],["WC048","Knysna","WC","DC4","Eden",11,"10408",1109],["WC051","Laingsburg","WC","DC5","Central Karoo",4,"10501",8789],["WC052","Prince Albert","WC","DC5","Central Karoo",4,"10502",8157],["WC053","Beaufort West","WC","DC5","Central Karoo",7,"10503",21931],["EC101","Dr Beyers Naude","EC","DC10","Sarah Baartman",14,"21001",28668],["EC102","Blue Crane Route","EC","DC10","Sarah Baartman",6,"21002",11075],["EC106","Sundays River Valley","EC","DC10","Sarah Baartman",8,"21006",5997],["EC108","Kouga","EC","DC10","Sarah Baartman",15,"21008",2671],["EC109","Kou-Kamma","EC","DC10","Sarah Baartman",6,"21009",3643],["EC123","Great Kei","EC","DC12","Amathole",7,"21203",1701],["EC126","Ngqushwa","EC","DC12","Amathole",12,"21206",2116],["EC135","Intsika Yethu","EC","DC13","Chris Hani",21,"21305",2875],["EC136","Emalahleni","EC","DC13","Chris Hani",17,"21306",3487],["EC138","Sakhisizwe","EC","DC13","Chris Hani",9,"21308",2320],["EC157","King Sabata Dalindyebo","EC","DC15","O.R.Tambo",36,"21507",3021],["FS194","Maluti a Phofung","FS","DC19","Thabo Mofutsanyane",35,"41904",4344],["GT421","Emfuleni","GT","DC42","Sedibeng",45,"74201",968],["GT422","Midvaal","GT","DC42","Sedibeng",15,"74202",1726],["GT423","Lesedi","GT","DC42","Sedibeng",13,"74203",1487],["KZN222","uMngeni","KZN","DC22","Umgungundlovu",12,"52202",1521],["KZN223","Mpofana","KZN","DC22","Umgungundlovu",5,"52203",1759],["KZN224","Impendle","KZN","DC22","Umgungundlovu",4,"52204",1612],["KZN225","The Msunduzi","KZN","DC22","Umgungundlovu",39,"52205",752],["KZN245","Umvoti","KZN","DC24","Umzinyathi",14,"52405",2708],["KZN271","Umhlabuyalingana","KZN","DC27","Umkhanyakude",18,"52701",4985],["KZN281","Mfolozi","KZN","DC28","Uthungulu",17,"52801",1302],["KZN282","uMhlathuze","KZN","DC28","Uthungulu",34,"52802",1235],["KZN285","Mthonjaneni","KZN","DC28","Uthungulu",13,"52805",1641],["KZN433","Greater Kokstad","KZN","DC43","Harry Gwala",10,"54303",2683],["LIM341","Musina","LIM","DC34","Vhembe",12,"93401",10373],["LIM343","Thulamela","LIM","DC34","Vhembe",41,"93403",2648],["LIM344","Makhado","LIM","DC34","Vhembe",38,"93404",7624],["LIM351","Blouberg","LIM","DC35","Capricorn",22,"93501",9563],["LIM353","Molemole","LIM","DC35","Capricorn",16,"93503",3636],["LIM354","Polokwane","LIM","DC35","Capricorn",45,"93504",5065],["MP316","Dr JS Moroka","MP","DC31","Nkangala",31,"83106",1419],["MP325","Bushbuckridge","MP","DC32","Ehlanzeni",38,"83205",10270],["NC451","Joe Morolong","NC","DC45","John Taolo Gaetsewe",15,"34501",20215],["WC014","Saldanha Bay","WC","DC1","West Coast",14,"10104",2016],["WC015","Swartland","WC","DC1","West Coast",12,"10105",3709],["WC032","Overstrand","WC","DC3","Overberg",13,"10302",1675],["EC129","Raymond Mhlaba","EC","DC12","Amathole",23,"21209",6361],["EC139","Tsolwana/Inkwanca/Lukanji","EC","DC13","Chris Hani",34,"21309",13595],["EC145","Maletswai/Gariep","EC","DC14","Joe Gqabi",11,"21405",13281],["GT485","Rand West City","GT","DC48","West Rand",35,"74205",1117],["KZN237","Inkosi Langalibalele","KZN","DC23","Uthukela",23,"52307",3403],["KZN238","Alfred Duma","KZN","DC23","Uthukela",36,"52308",3770],["KZN276","Big Five Hlabisa","KZN","DC27","Umkhanyakude",13,"52706",3471],["KZN436","Dr Nkosazana Dlamini Zuma","KZN","DC43","Harry Gwala",15,"54306",3606],["LIM345","Makhado-Thulamela","LIM","DC34","Vhembe",36,"93405",5015],["LIM368","Modimolle/Mookgophong","LIM","DC36","Waterberg",14,"93608",10389],["LIM476","Greater Tubatse/Fetakgomo","LIM","DC47","Sekhukhune",39,"94706",5706],["MP326","Mbombela/Umjindi","MP","DC32","Ehlanzeni",45,"83206",7156],["NC087","Dawid Kruiper","NC","DC8","Z F Mgcawu",16,"30807",44307],["NW405","Ventersdorp/Tlokwe","NW","DC40","Dr Kenneth Kaunda",34,"64005",6410]];       // [code, name, province, district code, district name, wards, ward-id prefix, km2]: OpenUp wazimap-za, 2016 delimitation
+const PROVS={EC:"Eastern Cape",FS:"Free State",GT:"Gauteng",KZN:"KwaZulu-Natal",LIM:"Limpopo",MP:"Mpumalanga",NC:"Northern Cape",NW:"North West",WC:"Western Cape"};
+const PROV_ORDER=["EC","FS","GT","KZN","LIM","MP","NC","NW","WC"];
+
+// Generator settings chosen to look plausible. They are NOT official results.
+// Party order: ANC, DA, EFF, MK, IFP, PA, ActionSA, FF+, Other.
+const PROV_GEN={
+ EC:{base:[63,14,8,0,.1,1.5,.3,1,12.1],mk:.04,stress:.70}, FS:{base:[51,19,12,0,.1,.6,.5,6,10.8],mk:.06,stress:.75},
+ GT:{base:[38,28,14,0,1.5,2,4,6,6.5],mk:.20,stress:.65},   KZN:{base:[40,10,9,0,27,.2,1,.5,12.3],mk:.50,stress:.70},
+ LIM:{base:[68,7,14,0,.1,.3,.5,2,8.1],mk:.04,stress:.70},  MP:{base:[58,13,15,0,.5,.5,1,3,9],mk:.20,stress:.70},
+ NC:{base:[50,22,9,0,.1,4,.5,4,10.4],mk:.03,stress:.60},   NW:{base:[55,13,17,0,.1,.5,1,5,8.4],mk:.05,stress:.80},
+ WC:{base:[22,46,4,0,.1,6,.5,4,17.4],mk:.03,stress:.35}};
+const METRO_GEN={
+ JHB:{base:[34,26,11,0,2,3,16,2,6],mk:.25,stress:.80},     TSH:{base:[34,32,11,0,.3,1,9,8,4.7],mk:.12,stress:.65},
+ EKU:{base:[38,29,14,0,2,2,7,3,5],mk:.28,stress:.70},      CPT:{base:[19,58,4,0,.2,3,1,3,11.8],mk:.04,stress:.25},
+ ETH:{base:[42,26,10,0,7,.3,2,.5,12.2],mk:.55,stress:.75}, NMA:{base:[39,40,6,0,.1,2,1,2,9.9],mk:.04,stress:.70},
+ MAN:{base:[51,26,11,0,.1,.5,.5,4,6.9],mk:.06,stress:.85}, BUF:{base:[59,20,12,0,.1,.5,.3,1,7.1],mk:.05,stress:.60}};
+
+const DAY0=Date.UTC(2026,9,3), ELECTION=32, LASTDAY=31;         // day 0 = 3 Oct 2026; day 32 = 4 Nov 2026
+const fmt=d=>new Date(DAY0+d*864e5).toLocaleDateString("en-ZA",{day:"numeric",month:"short",year:"numeric",timeZone:"UTC"});
+const CATS={
+ water:{label:"Water",half:10,title:"Water supply interrupted"},
+ electricity:{label:"Electricity",half:10,title:"Unplanned power outages"},
+ roads:{label:"Roads",half:30,title:"Road and stormwater failures reported"},
+ refuse:{label:"Refuse",half:14,title:"Refuse collection backlog"},
+ housing:{label:"Housing",half:45,title:"Housing allocation dispute"},
+ crime:{label:"Crime and safety",half:21,title:"Rise in reported safety incidents"},
+ governance:{label:"Corruption and governance",half:60,title:"Governance finding against ward office"},
+ protest:{label:"Protest",half:7,title:"Service delivery protest"},
+ conflict:{label:"Party conflict",half:21,title:"Internal party dispute over the ward"},
+ investment:{label:"Infrastructure investment",half:60,title:"New infrastructure project opened",positive:1}};
+
+// ------------------------------------------------------------ synthetic world
+const MUNIS=[], WARDS=[], EVENTS=[], REGIONS={};
+MUNI_RAW.slice().sort((a,b)=>a[2].localeCompare(b[2])||((a[3]===null?0:1)-(b[3]===null?0:1))||(a[4]||"").localeCompare(b[4]||"")||a[1].localeCompare(b[1]))
+.forEach((raw,mi)=>{
+  const [code,name,prov,dist,distName,n,prefix,km2]=raw, metro=dist===null, g=METRO_GEN[code]||PROV_GEN[prov];
+  const r=rng(1000+mi*77), shift=r()*8;
+  const prof=metro?g.base:g.base.map(v=>v>0?v*Math.exp(.35*norm(r)):0);
+  const cols=Math.max(3,Math.ceil(Math.sqrt(n*1.6))), rows=Math.ceil(n/cols);
+  const m={mi,code,name,prov,dist,distName:metro?"Metropolitan municipality":distName,metro,n,prefix,km2,cols,rows,w0:WARDS.length,
+    mk:g.mk*clamp(1+.3*norm(r),.4,1.6),stress:metro?g.stress:clamp(g.stress+.15*norm(r),.1,.95),
+    late:PARTIES.map(()=>norm(r)*.14),tShift:-.12+.05*norm(r),region:metro?code:prov};
+  MUNIS.push(m);
+  if(!REGIONS[m.region]) REGIONS[m.region]={key:m.region,label:metro?name+" poll":PROVS[prov]+" provincial poll",kind:metro?"metro":"province",n:metro?800:700,from:-18,to:-9};
+  for(let k=0;k<n;k++){
+    const col=k%cols,row=Math.floor(k/cols);
+    const a=clamp(1.1*Math.sin((col+shift)/cols*Math.PI*1.3)*Math.cos(row/rows*Math.PI)+.5*norm(r),-1.5,1.5);
+    const tilt=[-.7*a,1.0*a,-.8*a,0,-.4*a,.1*a,.3*a,.8*a,0].map(t=>t+.25*norm(r));
+    const base=softmax(prof.map((v,i)=>(v>0?Math.log(v):-40)+tilt[i]));
+    let n24=base.slice(); const mk=Math.max(0,Math.min(base[0]-.02,base[0]*m.mk*clamp(1+.3*norm(r),.4,1.6)*(a<0?1.1:.6)));
+    n24[0]-=mk; n24[3]+=mk+.15*n24[2]; n24[2]*=.85; n24[1]*=1.05; n24[6]*=.55; n24[5]*=1.6; n24[4]*=1.2; n24[7]*=.8;
+    n24=renorm(n24.map(v=>Math.max(v*(1+.08*norm(r)),0)));
+    const u=r(), inc=argmax(base);
+    const w={ix:WARDS.length,id:code+"-"+(k+1),wid:prefix+String(k+1).padStart(3,"0"),mi,prov,region:m.region,no:k+1,col,row,base,n24,inc,
+      reg:Math.round((metro?9000+r()*15000:2800+r()*6500)/10)*10, tb:expit(-.25+.35*a+.2*norm(r)),
+      settle:a>.6?"Town centre and suburbs":a>-.2?"Mixed settlement":a>-.9?"Township":metro?"Informal settlement":"Rural villages and farms",
+      exposure:clamp(1-.4*a+.2*norm(r),.4,1.6), boundary:u<.6?r()*.05:u<.9?.05+r()*.25:.3+r()*.45, complete:.65+.35*r(), lastConf:-Math.floor(r()*25),
+      noise:PARTIES.map(()=>norm(r)*.20), tNoise:norm(r)*.15, nb:[], byEl:null, survey:null};
+    if(r()<.06) w.byEl={day:-Math.floor(60+r()*340),shares:softmax(lnS(base.map((v,i)=>.5*v+.5*n24[i])).map(v=>v+.2*norm(r)))};
+    const sw=r()<.04; let to=null;
+    if(sw){const opts=base.map((v,i)=>i).filter(i=>i!==inc&&i!==8&&n24[i]>.08);to=opts.length?opts[Math.floor(r()*opts.length)]:null}
+    w.cand={standing:to===null&&r()<.7,switchTo:to,indep:r()<.06,n:metro?8+Math.floor(r()*16):4+Math.floor(r()*10)};
+    if(r()<.05) w.survey={n:150+Math.floor(r()*200),from:-13,to:-4};
+    [[col-1,row],[col+1,row],[col,row-1],[col,row+1]].forEach(([c,rr])=>{const j=rr*cols+c; if(c>=0&&c<cols&&rr>=0&&j<n) w.nb.push(m.w0+j)});
+    WARDS.push(w);
+  }
+  // events: some dated before today, some later in the campaign (they enter as the model date advances)
+  const cats=Object.keys(CATS), ne=Math.max(1,Math.round(n/7));
+  for(let e=0;e<ne;e++){
+    const w=WARDS[m.w0+Math.floor(r()*n)], c=cats[Math.floor(r()*cats.length)];
+    const persistent=r()<.3, muni=r()<.15, day=Math.floor(-25+r()*54);
+    let party=null;
+    if(c==="conflict"){const o=w.n24.map((v,i)=>i).filter(i=>i!==8&&w.n24[i]>.1);party=o.length?o[Math.floor(r()*o.length)]:null}
+    EVENTS.push({id:"EV-"+String(EVENTS.length+1).padStart(4,"0"),ward:w.id,mi,cat:c,sev:2+Math.floor(r()*4),day,
+      end:persistent?null:day+Math.floor(1+r()*6),persistent,scope:muni?"municipality":"ward",party,
+      cred:+(.6+.35*r()).toFixed(2),verified:r()<.85,source:"Synthetic event feed",by:"feed"});
+  }
+});
+const WARD_IX=new Map(WARDS.map(w=>[w.id,w.ix])), wardById=id=>WARDS[WARD_IX.get(id)];
+const MUNI_IX=new Map(MUNIS.map(m=>[m.code,m.mi])), muniOf=c=>MUNIS[MUNI_IX.get(c)];
+const wardsOf=m=>WARDS.slice(m.w0,m.w0+m.n);
+
+function evTime(e,day,half){ if(e.day>day) return 0;
+  if(e.persistent&&(e.end===null||e.end>=day)) return 1;
+  const from=e.end===null?e.day:Math.min(e.end,day); return Math.pow(.5,Math.max(0,day-from)/half)}
+// Effect of events on each ward: per-party log-ratio shift, turnout pressure, newest evidence day
+function eventField(events,day,beta,propN,muniW){
+  const f=new Array(WARDS.length);
+  const cell=i=>f[i]||(f[i]={d:new Array(NP).fill(0),neg:0,last:-999,list:[]});
+  events.forEach(e=>{ if(!e.verified||e.day>day) return;
+    const c=CATS[e.cat], wt=e.sev/5*e.cred*evTime(e,day,c.half); if(wt<.005) return;
+    const src=wardById(e.ward), sign=c.positive?1:-1;
+    const hit=(w,scale,how)=>{const t=e.party!==null?e.party:w.inc, x=sign*beta*wt*scale, k=cell(w.ix);
+      k.d[t]+=x; if(sign<0) k.neg+=wt*scale; k.last=Math.max(k.last,e.day); k.list.push({e,weight:wt*scale,how,target:t,shift:x})};
+    if(e.scope==="municipality"){const m=MUNIS[e.mi]; for(let i=m.w0;i<m.w0+m.n;i++) hit(WARDS[i],i===src.ix?1:muniW,i===src.ix?"origin ward":"municipality-wide")}
+    else{hit(src,1,"this ward"); if(propN>0) src.nb.forEach(i=>hit(WARDS[i],propN,"adjoining ward"))}
+  }); return f}
+const NOEV={d:new Array(NP).fill(0),neg:0,last:-999,list:[]};
+
+// The simulated "real world". The model never reads this; it is only used to draw polls and the final result.
+const TRUE={lambda:.65,byEl:.3,struct:.35,events:.45,muniW:.6,inc:.12,repl:-.06,swTo:.30,swFrom:-.24,indep:.25};
+function truth(events,day,late){
+  const f=eventField(events,day,TRUE.events,0,TRUE.muniW);
+  return WARDS.map(w=>{const m=MUNIS[w.mi], ev=f[w.ix]||NOEV;
+    let s=w.base.map((v,i)=>(1-TRUE.lambda)*v+TRUE.lambda*w.n24[i]);
+    if(w.byEl) s=s.map((v,i)=>(1-TRUE.byEl)*v+TRUE.byEl*w.byEl.shares[i]);
+    const l=lnS(s); l[w.inc]-=TRUE.struct*m.stress*w.exposure;
+    ev.d.forEach((x,i)=>l[i]+=x);
+    if(w.cand.standing) l[w.inc]+=TRUE.inc; else if(w.cand.switchTo!==null){l[w.cand.switchTo]+=TRUE.swTo;l[w.inc]+=TRUE.swFrom} else l[w.inc]+=TRUE.repl;
+    if(w.cand.indep) l[8]+=TRUE.indep;
+    w.noise.forEach((x,i)=>l[i]+=x+(late?m.late[i]:0));
+    const t=expit(logit(w.tb)-.25*m.stress*w.exposure-.15*ev.neg+(late?m.tShift:0)+w.tNoise);
+    return {sh:softmax(l),turnout:t}})}
+// Polls: fieldwork in late September, drawn from the simulated world at that time plus sampling error.
+// Each metro has its own poll; wards outside the metros rely on their province's poll.
+(function(){const r=rng(424242), tp=truth(EVENTS,-9,false), DEFF=1.3;
+  const sample=(p,n)=>renorm(p.map(v=>Math.max(v+norm(r)*Math.sqrt(DEFF*v*(1-v)/n),0)));
+  const acc={};
+  WARDS.forEach(w=>{if(w.survey) w.survey.shares=sample(tp[w.ix].sh,w.survey.n);
+    const a=acc[w.region]||(acc[w.region]={tot:0,bt:0,agg:new Array(NP).fill(0),bagg:new Array(NP).fill(0),tr:0});
+    const v=w.reg*tp[w.ix].turnout, bv=w.reg*w.tb; a.tot+=v; a.bt+=bv; a.tr+=w.reg;
+    tp[w.ix].sh.forEach((s,i)=>a.agg[i]+=s*v); w.base.forEach((s,i)=>a.bagg[i]+=s*bv)});
+  Object.keys(acc).forEach(k=>{const a=acc[k], R=REGIONS[k];
+    R.shares=sample(a.agg.map(v=>v/a.tot),R.n); R.stated=clamp(a.tot/a.tr+.10+.02*norm(r),.2,.9); R.baseAgg=a.bagg.map(v=>v/a.bt); R.baseTurn=a.bt/a.tr})})();
+
+// --------------------------------------------------------------------- model
+const DEFAULTS={lambda:.5,byEl:.4,struct:.5,events:.6,propN:.3,muniW:.6,cand:.10,sigma:.16};
+const PARAM_INFO={lambda:"Weight on the 2024 national ballot when setting the starting point",byEl:"Weight on a ward by-election result",
+ struct:"Strength of the municipal service-stress effect on the ward incumbent",events:"Strength of a full-weight local event",
+ propN:"Share of a ward event passed to adjoining wards",muniW:"Weight of a municipality-wide event in other wards",
+ cand:"Boost for a sitting councillor standing again",sigma:"Base uncertainty (log-ratio scale)"};
+const LAYERS=[["later","Later elections and by-elections","1"],["structural","Structural conditions","2"],["events","Local events","3"],
+ ["candidates","Candidates","4"],["polls","Polls (output C only)","5"]];
+const MC=300;
+function compute(o){ // o: {day, layers, params, events}
+  const P=o.params, f=o.layers.events?eventField(o.events,o.day,P.events,P.propN,P.muniW):[];
+  return WARDS.map(w=>{const m=MUNIS[w.mi], ev=f[w.ix]||NOEV; const s0=w.base; let s1=s0;
+    if(o.layers.later){s1=s0.map((v,i)=>(1-P.lambda)*v+P.lambda*w.n24[i]); if(w.byEl) s1=s1.map((v,i)=>(1-P.byEl)*v+P.byEl*w.byEl.shares[i])}
+    const l=lnS(s1);
+    if(o.layers.structural) l[w.inc]-=P.struct*m.stress*w.exposure; const s2=softmax(l);
+    ev.d.forEach((x,i)=>l[i]+=x); const s3=softmax(l);
+    if(o.layers.candidates){ if(w.cand.standing) l[w.inc]+=P.cand; else if(w.cand.switchTo!==null){l[w.cand.switchTo]+=2.5*P.cand;l[w.inc]-=2*P.cand} else l[w.inc]-=.5*P.cand;
+      if(w.cand.indep) l[8]+=2*P.cand}
+    const B=softmax(l);
+    const last=Math.max(w.lastConf,ev.last), fresh=1-Math.min(1,(o.day-last)/30);
+    const sig=P.sigma*(1+w.boundary+.6*(1-w.complete)+.4*(1-fresh));
+    const tl=logit(w.tb)-(o.layers.structural?.35*m.stress*w.exposure:0)-(o.layers.events?.3*ev.neg:0), ts=.22*(1+w.boundary);
+    // 80% interval for each share: independent noise of size sig on every party's log-ratio (first-order approximation)
+    const lo=[],hi=[],varB=[];
+    for(let i=0;i<NP;i++){const b=clamp(B[i],1e-6,1-1e-6); let q=0; for(let j=0;j<NP;j++) if(j!==i){const x=B[j]/(1-b); q+=x*x}
+      const sd=sig*Math.sqrt(1+q), lg=logit(b); lo[i]=expit(lg-Z80*sd); hi[i]=expit(lg+Z80*sd); varB[i]=Math.pow(b*(1-b)*sd,2)}
+    let l1=0,l2=0,li=0,hh=0; for(let i=0;i<NP;i++){const v=B[i]; hh+=v*v; if(v>l1){l2=l1;l1=v;li=i}else if(v>l2) l2=v}
+    return {B,l,sig,fresh,lo,hi,varB,turnout:expit(tl),tLo:expit(tl-Z80*ts),tHi:expit(tl+Z80*ts),leader:li,margin:l1-l2,enp:1/hh,
+      conf:Math.round(100*(.4*w.complete+.3*fresh+.3*(1-Math.min(1,sig/.5)))),
+      contrib:{later:s1.map((v,i)=>v-s0[i]),structural:s2.map((v,i)=>v-s1[i]),events:s3.map((v,i)=>v-s2[i]),candidates:B.map((v,i)=>v-s3[i])},
+      evs:ev.list}})}
+// Share of simulations in which each party comes first. Run only for the ward being viewed.
+function leadChance(w){const r=S.res[w.ix]; if(r.win) return r.win;
+  const g=rng(9000+w.ix), win=new Array(NP).fill(0);
+  for(let k=0;k<MC;k++){let bi=0,bv=-Infinity; for(let i=0;i<NP;i++){const v=r.l[i]+r.sig*norm(g); if(v>bv){bv=v;bi=i}} win[bi]++}
+  return r.win=win.map(v=>v/MC)}
+// Candidate roster for a ward. Attributes only: the demo does not invent people, so there are no names.
+const NAME_POOL={
+ ZU:[["Sipho","Nomvula","Bongani","Zanele","Mandla","Thandeka","Sibusiso","Nokuthula","Mthokozisi","Lindiwe","Sandile","Ayanda","Nkosinathi","Hlengiwe","Siyabonga","Zodwa","Nomusa","Thulani","Sizwe","Nonhlanhla","Mfundo","Zinhle","Sbonelo","Phindile"],
+     ["Dlamini","Mkhize","Ngcobo","Khumalo","Mthembu","Cele","Zungu","Shange","Ndlovu","Mhlongo","Gumede","Ntuli","Hadebe","Sithole","Mtshali","Nxumalo","Mabaso","Zwane","Ngubane","Mbatha","Khoza","Myeni","Ntombela","Shezi"]],
+ XH:[["Luyanda","Nomsa","Andile","Thandiwe","Siyabulela","Nosipho","Mzwandile","Zoleka","Lwazi","Babalwa","Xolani","Nolitha","Vuyo","Phumza","Ayabonga","Lindelwa","Sandiswa","Mluleki","Nomonde","Zukile","Akhona","Bulelani","Yoliswa","Thembela"],
+     ["Sokutu","Tyali","Zantsi","Booi","Matiwane","Kula","Ntame","Dyantyi","Mqikela","Sonjica","Jali","Ntshona","Gcilitshana","Mfenyana","Nqoro","Vellem","Mpongwana","Ngcukana","Somdyala","Magadla","Sityata","Ndamase","Qotyana","Mbiko"]],
+ ST:[["Thabo","Lerato","Kagiso","Palesa","Tshepo","Dineo","Katlego","Refilwe","Lebogang","Mpho","Tumelo","Boitumelo","Karabo","Naledi","Teboho","Puleng","Kgomotso","Tebogo","Masego","Thato","Lesego","Neo","Itumeleng","Keabetswe"],
+     ["Mokoena","Molefe","Mofokeng","Motaung","Moloi","Tau","Maleka","Letsoalo","Kekana","Ledwaba","Matlala","Mokgosi","Seabi","Phiri","Thobejane","Mphahlele","Mogale","Sekgobela","Rakgoadi","Lekalakala","Mosia","Nhlapo","Tladi","Mohlala"]],
+ VT:[["Tshilidzi","Rudzani","Fulufhelo","Mulalo","Hlulani","Tsakani","Nyiko","Khensani","Ntsako","Vutomi","Azwindini","Livhuwani","Ndivhuwo","Tinyiko","Mashudu","Xongi"],
+     ["Mudau","Mukwevho","Tshivhase","Ravele","Mabasa","Chauke","Baloyi","Maluleke","Hlungwani","Mathebula","Ngobeni","Rikhotso","Nkuna","Nemakonde","Mulaudzi","Makhubele"]],
+ AF:[["Johan","Annelize","Pieter","Marlene","Riaan","Chantelle","Deon","Liezl","Francois","Natasha","Ashley","Michelle","Brandon","Sarah","Graham","Karen","Hendrik","Elmarie","Willem","Charmaine","Gavin","Lynette","Stefan","Bronwyn"],
+     ["van der Merwe","Pretorius","Jacobs","Williams","Adams","Smith","du Plessis","Fourie","Hendricks","Abrahams","Petersen","Davids","Venter","Coetzee","Arendse","Jansen","Swart","Daniels","February","Botha","Nel","Steyn","Isaacs","Meyer"]],
+ IN:[["Priya","Kavitha","Sanjay","Yusuf","Fatima","Ashwin","Nisha","Imraan","Shanthi","Vikash","Reshma","Kiran"],
+     ["Naidoo","Pillay","Govender","Moodley","Reddy","Chetty","Singh","Maharaj","Khan","Patel","Moosa","Bhana"]]};
+// Share of each name pool by province. Names follow the province, never the party.
+const NAME_MIX={KZN:[["ZU",.8],["IN",.1],["AF",.1]],EC:[["XH",.8],["AF",.2]],WC:[["AF",.68],["XH",.32]],NC:[["AF",.6],["ST",.3],["XH",.1]],
+ FS:[["ST",.75],["AF",.2],["XH",.05]],NW:[["ST",.85],["AF",.15]],GT:[["ST",.35],["ZU",.25],["AF",.2],["XH",.08],["VT",.07],["IN",.05]],
+ MP:[["ZU",.45],["ST",.25],["VT",.15],["AF",.15]],LIM:[["ST",.55],["VT",.4],["AF",.05]]};
+// Candidate rosters, built one municipality at a time so that no name repeats within a municipality.
+// The names are generated for the demonstration and do not refer to real people.
+function buildCands(m){const gn=rng(88000+m.mi), used=new Set(), keys=Object.keys(NAME_POOL);
+  const name=()=>{for(let t=0;t<40;t++){let pool="AF";
+      if(t<25){let u=gn(); for(const [k,p] of NAME_MIX[m.prov]){if(u<p){pool=k;break} u-=p}} else pool=keys[Math.floor(gn()*keys.length)];
+      const [f,l]=NAME_POOL[pool], n=f[Math.floor(gn()*f.length)]+" "+l[Math.floor(gn()*l.length)]; if(!used.has(n)){used.add(n);return n}}
+    return "Candidate "+(used.size+1)};
+  wardsOf(m).forEach(w=>{const g=rng(77000+w.ix), c=w.cand, rows=[], councillor=name();
+    const named=[0,1,2].concat([3,4,5,6,7].filter(i=>Math.max(w.base[i],w.n24[i])>=.03));
+    named.forEach(i=>{let status,sitting=false;
+      if(i===w.inc){ if(c.standing){status="Sitting ward councillor, standing again";sitting=true} else status=c.switchTo!==null?"Stands in place of "+councillor+", who left the party":"Stands in place of sitting councillor "+councillor}
+      else if(i===c.switchTo){status="Sitting ward councillor, switched from the "+ab(w.inc);sitting=true}
+      else status=g()<.12?"Sitting list councillor":"Challenger";
+      rows.push({party:i,label:ab(i),name:sitting?councillor:name(),status,stood:sitting||g()<.25,mentions:Math.floor(g()*g()*14)+(sitting?2:0)})});
+    const ni=c.indep?1+(g()<.3?1:0):(g()<.08?1:0);
+    for(let k=0;k<ni;k++){const big=c.indep&&k===0; rows.push({party:8,label:"Independent",name:name(),status:big?"Prominent independent":"Independent",stood:g()<.2,mentions:Math.floor(g()*g()*(big?16:5))})}
+    const others=Math.max(0,c.n-named.length-ni);
+    w.cl={rows,others,total:rows.length+others,indep:ni,named:named.length,councillor,incRow:rows.find(x=>x.party===w.inc),
+      bigIndep:c.indep?rows.find(x=>x.status==="Prominent independent"):null}})}
+function candList(w){ if(!w.cl) buildCands(MUNIS[w.mi]); return w.cl}
+let CAND_TOTALS=null;
+function candTotals(){ if(CAND_TOTALS) return CAND_TOTALS; const t={total:0,standing:0,replaced:0,switched:0,indep:0};
+  WARDS.forEach(w=>{t.total+=candList(w).total; if(w.cand.standing) t.standing++; else if(w.cand.switchTo!==null) t.switched++; else t.replaced++; if(w.cand.indep) t.indep++}); return CAND_TOTALS=t}
+// Output A: polls only. Output C: precision-weighted blend of A and B. B is computed above and never reads a poll.
+function pollOutputs(res,pollsOn){const DEFF=1.3;
+  return WARDS.map(w=>{const R=REGIONS[w.region], b=res[w.ix]; let sh,se,src;
+    if(w.survey){sh=w.survey.shares; se=sh.map(p=>{const q=Math.max(p,.01);return Math.sqrt(DEFF*q*(1-q)/w.survey.n)}); src="ward"}
+    else{sh=renorm(w.base.map((v,i)=>Math.max(v+R.shares[i]-R.baseAgg[i],.001))); se=sh.map(p=>{const q=Math.max(p,.01);return Math.sqrt(DEFF*q*(1-q)/R.n+.05*.05)}); src=R.kind}
+    const A={sh,lo:sh.map((p,i)=>clamp(p-Z80*se[i],0,1)),hi:sh.map((p,i)=>clamp(p+Z80*se[i],0,1)),src,turnout:clamp(w.tb+R.stated-R.baseTurn,.05,.95)};
+    let C;
+    if(pollsOn){let wsum=0; const raw=sh.map((p,i)=>{const wa=1/(se[i]*se[i]), wb=1/Math.max(b.varB[i],1e-6); wsum+=wa/(wa+wb); return (wa*p+wb*b.B[i])/(wa+wb)});
+      const tot=raw.reduce((x,y)=>x+y,0), c=raw.map(v=>v/tot), sc=sh.map((p,i)=>Math.sqrt(1/(1/(se[i]*se[i])+1/Math.max(b.varB[i],1e-6))));
+      C={sh:c,lo:c.map((p,i)=>clamp(p-Z80*sc[i],0,1)),hi:c.map((p,i)=>clamp(p+Z80*sc[i],0,1)),pollWeight:wsum/NP,turnout:b.turnout}}
+    else C={sh:b.B,lo:b.lo,hi:b.hi,pollWeight:0,turnout:b.turnout};
+    return {A,B:{sh:b.B,lo:b.lo,hi:b.hi,turnout:b.turnout},C}})}
+// Roll-up per municipality, used by the map, the province pages and the overview
+function summarise(res){return MUNIS.map(m=>{const lead=new Array(NP).fill(0); let close=0,diff=0,mv=0,conf=0;
+  for(let i=m.w0;i<m.w0+m.n;i++){const r=res[i], w=WARDS[i]; lead[r.leader]++; if(r.margin<.05) close++; if(r.leader!==w.inc) diff++; mv+=r.B[w.inc]-w.base[w.inc]; conf+=r.conf}
+  return {lead,close,diff,mv,conf,n:m.n}})}
+
+// --------------------------------------------------------------------- state
+const S={page:"map",prov:"GT",muni:"JHB",ward:"JHB-1",day:0,layers:{later:true,structural:true,events:true,candidates:true,polls:true},params:{...DEFAULTS},
+  events:EVENTS.map(e=>({...e})),mapMode:"leader",sort:{key:"no",dir:1},pollProv:"ALL",evMuni:"JHB",evWard:1,candMuni:"JHB",
+  runs:[],changes:null,frozen:null,score:null,res:null,out:null,sum:null,seq:0};
+const runId=n=>"RUN-"+String(n).padStart(4,"0");
+function recompute(trigger,analyst){
+  const prev=S.res; S.res=compute({day:S.day,layers:S.layers,params:S.params,events:S.events}); S.out=pollOutputs(S.res,S.layers.polls); S.sum=summarise(S.res);
+  S.seq++; const run={id:runId(S.seq),ts:new Date(),day:S.day,trigger,analyst:!!analyst,layers:{...S.layers},params:{...S.params},
+    events:S.events.filter(e=>e.verified&&e.day<=S.day).length};
+  if(prev){const ch=[]; WARDS.forEach(w=>{const a=prev[w.ix],b=S.res[w.ix]; let p=0,d=0; for(let i=0;i<NP;i++){const x=b.B[i]-a.B[i]; if(Math.abs(x)>Math.abs(d)){d=x;p=i}}
+      if(Math.abs(d)<.001) return; let drv="uncertainty only",dm=0;
+      for(const k in b.contrib){const x=Math.abs(b.contrib[k][p]-a.contrib[k][p]); if(x>dm){dm=x;drv=k}}
+      ch.push({ward:w.id,party:p,from:a.B[p],to:b.B[p],d,driver:drv,lead0:a.leader,lead1:b.leader})});
+    ch.sort((x,y)=>Math.abs(y.d)-Math.abs(x.d)); run.moved=ch.length; S.changes={run:run.id,prev:S.runs[0].id,trigger,ts:run.ts,list:ch}}
+  S.runs.unshift(run)}
+
+// ---------------------------------------------------------------- validation
+function scoreOne(o,tr){ // o: per-ward {sh,lo,hi,turnout}
+  let ae=0,n=0,te=0,win=0,cov=0,close=0,nc=0,open=0,no=0,frag=0,nf=0,dir=0,mv=0; const by={};
+  WARDS.forEach(w=>{const t=tr[w.ix],x=o[w.ix]; let t1=0,t2=0,hh=0; t.sh.forEach(v=>{hh+=v*v; if(v>t1){t2=t1;t1=v}else if(v>t2) t2=v});
+    const isClose=t1-t2<.10, isFrag=1/hh>3;
+    let wa=0; t.sh.forEach((v,i)=>{wa+=Math.abs(x.sh[i]-v); if(v>=x.lo[i]&&v<=x.hi[i]) cov++});
+    ae+=wa; n+=NP; te+=Math.abs(x.turnout-t.turnout); if(argmax(x.sh)===argmax(t.sh)) win++;
+    if(isClose){close+=wa;nc+=NP}else{open+=wa;no+=NP} if(isFrag){frag+=wa;nf+=NP}
+    const dT=t.sh[w.inc]-w.base[w.inc], dX=x.sh[w.inc]-w.base[w.inc]; if(Math.sign(dT)===Math.sign(dX)) dir++; mv+=Math.abs(dX-dT);
+    (by[w.prov]=by[w.prov]||[0,0])[0]+=wa; by[w.prov][1]+=NP});
+  const W=WARDS.length;
+  return {mae:ae/n,turn:te/W,win:win/W,cov:cov/n,close:nc?close/nc:null,open:no?open/no:null,frag:nf?frag/nf:null,dir:dir/W,mv:mv/W,nClose:nc/NP,nFrag:nf/NP,
+    by:Object.fromEntries(Object.entries(by).map(([k,v])=>[k,v[0]/v[1]]))}}
+function freeze(){ if(S.frozen) return;
+  const snap=S.out.map(o=>({A:{...o.A},B:{...o.B},C:{...o.C}}));
+  S.frozen=Object.freeze({run:S.runs[0].id,ts:new Date(),day:S.day,layers:{...S.layers},params:{...S.params},events:S.events.map(e=>({...e})),out:snap});
+  recompute("Outputs A, B and C frozen as "+S.runs[0].id,true)}
+function reveal(){ const F=S.frozen; if(!F||S.score) return;
+  const tr=truth(S.events,ELECTION,true), pick=k=>F.out.map(o=>o[k]);
+  const sc={A:scoreOne(pick("A"),tr),B:scoreOne(pick("B"),tr),C:scoreOne(pick("C"),tr),abl:[]};
+  const point=(layers,params)=>compute({day:F.day,layers,params,events:F.events});
+  const mae=res=>{let a=0;WARDS.forEach(w=>tr[w.ix].sh.forEach((v,i)=>a+=Math.abs(res[w.ix].B[i]-v)));return a/(WARDS.length*NP)};
+  const full=mae(point(F.layers,F.params));
+  [["later","Later elections and by-elections"],["structural","Structural conditions"],["events","Local events"],["candidates","Candidates"]].forEach(([k,label])=>{
+    if(F.layers[k]) sc.abl.push({label,without:mae(point({...F.layers,[k]:false},F.params)),full})});
+  if(F.layers.events) sc.abl.push({label:"Adjoining-ward signal only",without:mae(point(F.layers,{...F.params,propN:0})),full});
+  sc.abl.push({label:"Polls (C compared with B)",without:sc.B.mae,full:sc.C.mae});
+  S.score=sc}
+
+// ==================================================================== interface
+const pc=(x,d=1)=>(100*x).toFixed(d)+"%", pt=(x,d=1)=>(x>0?"+":"")+(100*x).toFixed(d)+" pts";
+const pts=v=>v===null?"None":(100*v).toFixed(2)+" pts";
+const num=x=>Math.round(x).toLocaleString("en-ZA");
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const TAGS={FACT:"Fact",MEASUREMENT:"Measurement",MODELLED:"Modelled",ASSUMPTION:"Assumption"};
+const tag=t=>`<span class="tag ${t}">${TAGS[t]}</span>`, syn=`<span class="tag SYN">Synthetic</span>`;
+const sw=i=>`<i class="swatch" style="background:var(--${PARTIES[i].id})"></i>`;
+const stamp=d=>d.toLocaleString("en-ZA",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",second:"2-digit"});
+const DRIVER={later:"Later elections",structural:"Structural conditions",events:"Local events",candidates:"Candidates"};
+const wardLink=(w,label)=>`<button class="link" data-act="ward" data-id="${w.id}">${label||"Ward "+w.no}</button>`;
+const wardName=w=>MUNIS[w.mi].name+" "+w.no;
+const provSelect=(key,val,all)=>`<select data-sel="${key}">${all?`<option value="ALL" ${val==="ALL"?"selected":""}>All nine provinces</option>`:""}${
+  PROV_ORDER.map(p=>`<option value="${p}" ${p===val?"selected":""}>${PROVS[p]}</option>`).join("")}</select>`;
+const muniSelect=(key,prov,val)=>`<select data-sel="${key}">${MUNIS.filter(m=>m.prov===prov).map(m=>`<option value="${m.code}" ${m.code===val?"selected":""}>${m.name} (${m.n})</option>`).join("")}</select>`;
+const head=(title,sub,ctrls,crumbs)=>`<div class="phead"><div>${crumbs?`<div class="crumbs">${crumbs}</div>`:""}<h1>${title}</h1>${sub?`<p>${sub}</p>`:""}</div>${ctrls?`<div class="ctrls">${ctrls}</div>`:""}</div>`;
+const stat=(label,value,note)=>`<div class="stat"><span>${label}</span><b>${value}</b>${note?`<small>${note}</small>`:""}</div>`;
+const crumb=(...parts)=>parts.map(p=>p[1]?`<button class="link" data-act="${p[1]}" data-id="${p[2]||""}">${p[0]}</button>`:p[0]).join(" / ");
+const NAV=[["map","Map and wards"],["changes","What changed"],null,["events","Events"],["candidates","Candidates"],["polls","Poll comparison"],null,
+  ["validation","Validation"],["audit","Audit trail"],["settings","Model settings"]];
+
+function tileStyle(w){const r=S.res[w.ix];
+  if(S.mapMode==="leader"){const p=PARTIES[r.leader];return [`background:var(--${p.id});color:${p.id==="MK"?"var(--MKfg)":p.dark?"#fff":"#17262B"}`,ab(r.leader)+" "+pc(r.B[r.leader],0)]}
+  if(S.mapMode==="margin"){const i=[.05,.10,.20,.35,9].findIndex(s=>r.margin<s);return [`background:var(--c${4-i});color:${i<2?"var(--paper)":"var(--ink)"}`,pc(r.margin,0)+" lead"]}
+  if(S.mapMode==="move"){const d=r.B[w.inc]-w.base[w.inc], a=clamp(Math.abs(d)/.2,0,1);
+    return [`background:color-mix(in srgb,var(--${d<0?"neg":"pos"}) ${Math.round(a*100)}%,var(--mid));color:${a>.55?"#fff":"var(--ink)"}`,pt(d,0)]}
+  const i=[45,55,65,75,999].findIndex(s=>r.conf<s);return [`background:var(--c${i});color:${i>2?"var(--paper)":"var(--ink)"}`,r.conf+" / 100"]}
+const LEGENDS={leader:()=>PARTIES.map((p,i)=>`<span><i style="background:var(--${p.id})"></i>${ab(i)}</span>`).join(""),
+  margin:()=>["Under 5 pts","5 to 10","10 to 20","20 to 35","Over 35"].map((t,i)=>`<span><i style="background:var(--c${4-i})"></i>${t}</span>`).join(""),
+  move:()=>`<span><i style="background:var(--neg)"></i>Incumbent losing share</span><span><i style="background:var(--mid)"></i>Little change</span><span><i style="background:var(--pos)"></i>Incumbent gaining</span>`,
+  conf:()=>["Under 45","45 to 55","55 to 65","65 to 75","Over 75"].map((t,i)=>`<span><i style="background:var(--c${i})"></i>${t}</span>`).join("")};
+const MODES=[["leader","Leading party","Leading party in output B and its estimated share."],["margin","Competitiveness","Lead of the first party over the second. Darker is closer."],
+  ["move","Movement","Change in the incumbent party's share since the rebuilt baseline."],["conf","Confidence","Evidence confidence: completeness, freshness and model uncertainty."]];
+function bars(sh,lo,hi,extra){const mx=Math.min(1,Math.ceil(Math.max(...hi)*10)/10)||1;
+  return sh.map((v,i)=>({v,i})).filter(o=>o.v>=.02||o.i===8).sort((a,b)=>b.v-a.v).map(({v,i})=>
+   `<div class="row"><span title="${esc(PARTIES[i].name)}">${ab(i)}</span><div class="track"><div class="fill" style="width:${v/mx*100}%;background:var(--${PARTIES[i].id});opacity:.85"></div>
+    <div class="whisk" style="left:${lo[i]/mx*100}%;width:${Math.max((hi[i]-lo[i])/mx*100,.5)}%"></div></div>
+    <span class="val">${pc(v)}<small>${pc(lo[i],0)} to ${pc(hi[i],0)}${extra?extra(i):""}</small></span></div>`).join("")}
+function rollup(munis){const t={lead:new Array(NP).fill(0),close:0,diff:0,mv:0,conf:0,n:0,munis:munis.length};
+  munis.forEach(m=>{const s=S.sum[m.mi]; s.lead.forEach((v,i)=>t.lead[i]+=v); t.close+=s.close; t.diff+=s.diff; t.mv+=s.mv; t.conf+=s.conf; t.n+=s.n}); return t}
+const strip=s=>`<div class="strip" role="img" aria-label="Wards led by each party">${s.lead.map((n,i)=>n?`<i style="width:${n/s.n*100}%;background:var(--${PARTIES[i].id})" title="${ab(i)} ${n}"></i>`:"").join("")}</div>
+  <small class="sub">${s.lead.map((n,i)=>({n,i})).filter(x=>x.n).sort((a,b)=>b.n-a.n).slice(0,4).map(x=>ab(x.i)+" "+x.n).join(", ")}</small>`;
+const LABEL_NUDGE={NW:[-42,14],MP:[30,26],GT:[2,-2],LIM:[0,6],KZN:[-8,8]};
+const CLOSE_BINS=[.08,.11,.14,.18,9], CLOSE_LABELS=["Under 8%","8 to 11%","11 to 14%","14 to 18%","Over 18%"];
+function saMap(selected,small){
+  return `<svg class="samap ${small?"small":""}" viewBox="0 0 ${PROVMAP.w} ${PROVMAP.h}" role="group" aria-label="Map of South Africa by province">${
+   PROVMAP.prov.map(p=>{const t=rollup(MUNIS.filter(m=>m.prov===p.code)), i=CLOSE_BINS.findIndex(s=>t.close/t.n<s);
+    return `<path d="${p.d}" class="prov ${selected===p.code?"on":""}" style="fill:var(--c${i})" data-act="prov" data-id="${p.code}" tabindex="0" role="button" aria-label="${PROVS[p.code]}: ${t.n} wards, ${t.close} close contests"><title>${PROVS[p.code]}: ${t.munis} municipalities, ${num(t.n)} wards, ${t.close} close contests</title></path>`}).join("")}${
+   small?"":PROVMAP.prov.map(p=>{const o=LABEL_NUDGE[p.code]||[0,0];return `<text x="${p.lx+o[0]}" y="${p.ly+o[1]}" class="plabel ${p.code==="GT"?"tiny":""}">${PROVS[p.code]}</text>`}).join("")}</svg>`}
+
+// ------------------------------------------------------------- South Africa
+function pageMap(){const left=ELECTION-S.day, all=rollup(MUNIS), inModel=S.events.filter(e=>e.verified&&e.day<=S.day).length, c=S.changes;
+  return head("South Africa","Select a province on the map or in the table, then a municipality, then a ward.")+`<div class="stack">
+  <div class="stats">${stat("Days to election",left,"4 November 2026")}${stat("Municipalities",MUNIS.length,"8 metropolitan, "+(MUNIS.length-8)+" local")}${stat("Wards",num(WARDS.length),"2016 ward list; see note below")}
+   ${stat("Close contests",num(all.close),"Lead under 5 points")}${stat("Incumbent not leading",num(all.diff),"Leading party differs from the incumbent")}${stat("Events in the model",inModel,"Verified, dated on or before today")}</div>
+  <div class="grid2"><div class="card"><h2>Provinces ${tag("MODELLED")} ${syn}</h2>${saMap(null)}
+    <div class="legend"><span>Share of wards that are close contests:</span>${CLOSE_LABELS.map((t,i)=>`<span><i style="background:var(--c${i})"></i>${t}</span>`).join("")}</div>
+    <p class="sub small">Province outlines are real (Natural Earth). The shading comes from the synthetic model.</p></div>
+   <div class="card"><h2>By province</h2><div class="scroll"><table><thead><tr><th>Province</th><th class="n">Wards</th><th>Wards led by each party</th><th class="n">Close</th></tr></thead><tbody>${
+    PROV_ORDER.map(p=>{const t=rollup(MUNIS.filter(m=>m.prov===p));return `<tr class="pick"><td><button class="link" data-act="prov" data-id="${p}">${PROVS[p]}</button><br><small>${t.munis} municipalities</small></td><td class="n">${num(t.n)}</td><td>${strip(t)}</td><td class="n">${t.close}</td></tr>`}).join("")}</tbody></table></div></div></div>
+  <div class="grid2 even"><div class="card"><h2>Latest model run</h2>${c?`<p><b>${c.run}</b>, ${stamp(c.ts)}</p><p>${esc(c.trigger)}.</p>
+     <p class="sub">${num(c.list.length)} wards moved by more than 0.1 points; the leading party changed in ${c.list.filter(x=>x.lead0!==x.lead1).length}.</p>
+     <p><button class="btn quiet" data-act="nav" data-id="changes">See what changed</button></p>`
+     :`<p><b>${S.runs[0].id}</b>, ${stamp(S.runs[0].ts)}</p><p>${esc(S.runs[0].trigger)}.</p><p class="sub">Advance the model date or record an event to see wards move.</p>
+     <p><button class="btn quiet" data-act="nav" data-id="events">Record an event</button></p>`}</div>
+   <div class="card"><h2>What is real here ${tag("FACT")}</h2>
+    <table><tbody><tr><td>Election day</td><td>4 November 2026</td></tr><tr><td>Candidates</td><td>136,790 certified <small>Electoral Commission, 16 September 2026</small></td></tr>
+    <tr><td>Municipalities</td><td>All 213 that elect ward councillors, with their real names, districts and provinces. The 44 district councils have no wards: 40% of their seats are elected by proportional vote and the rest are appointed by the local councils.</td></tr>
+    <tr><td>Wards</td><td>${num(WARDS.length)} wards, numbered as in the 2016 delimitation <small>OpenUp</small>. The 2026 delimitation has 4,488; that list loads from the Municipal Demarcation Board in the production build.</td></tr></tbody></table></div></div></div>`}
+
+// ----------------------------------------------------------------- province
+function pageProvince(){const ms=MUNIS.filter(m=>m.prov===S.prov), t=rollup(ms); let lastD=null;
+  const evs=S.events.filter(e=>e.verified&&e.day<=S.day&&MUNIS[e.mi].prov===S.prov).length;
+  return head(PROVS[S.prov],"Select a municipality to see its wards.",`<label>Province ${provSelect("prov",S.prov)}</label>`,crumb(["South Africa","nav","map"],[PROVS[S.prov]]))+`<div class="stack">
+  <div class="stats">${stat("Municipalities",t.munis,ms.filter(m=>m.metro).length+" metropolitan")}${stat("Wards",num(t.n))}${stat("Close contests",t.close,"Lead under 5 points")}
+   ${stat("Incumbent not leading",t.diff)}${stat("Average confidence",Math.round(t.conf/t.n)+" / 100")}${stat("Events in the model",evs)}</div>
+  <div class="grid2 wide"><div class="card"><h2>Municipalities ${tag("MODELLED")} ${syn}</h2><div class="scroll"><table><thead><tr><th>Municipality</th><th class="n">Wards</th><th>Wards led by each party</th><th class="n">Close</th><th class="n">Incumbent trailing</th><th class="n">Confidence</th></tr></thead><tbody>${
+    ms.map(m=>{const s=S.sum[m.mi], g=m.distName!==lastD?`<tr class="grp"><th colspan="6">${m.metro?"Metropolitan municipalities":m.distName+" District"}</th></tr>`:""; lastD=m.distName;
+     return g+`<tr class="pick"><td><button class="link" data-act="muni" data-id="${m.code}">${m.name}</button><br><small>${m.code}</small></td><td class="n">${m.n}</td><td>${strip(s)}</td>
+      <td class="n">${s.close}</td><td class="n">${s.diff}</td><td class="n">${Math.round(s.conf/s.n)}</td></tr>`}).join("")}</tbody></table></div></div>
+   <div class="card sticky"><h2>Other provinces</h2>${saMap(S.prov,true)}<p class="sub small">Select a province to switch.</p></div></div></div>`}
+
+// ------------------------------------------------------------- municipality
+function pageMuni(){const m=muniOf(S.muni), ws=wardsOf(m), mode=MODES.find(x=>x[0]===S.mapMode), s=S.sum[m.mi];
+  const val={no:w=>w.no,leader:w=>ab(S.res[w.ix].leader),share:w=>S.res[w.ix].B[S.res[w.ix].leader],margin:w=>S.res[w.ix].margin,
+    move:w=>S.res[w.ix].B[w.inc]-w.base[w.inc],conf:w=>S.res[w.ix].conf}[S.sort.key];
+  const rows=ws.slice().sort((a,b)=>{const x=val(a),y=val(b);return (x<y?-1:x>y?1:a.no-b.no)*S.sort.dir});
+  const th=(k,l,n)=>`<th class="${n?"n":""}" aria-sort="${S.sort.key===k?(S.sort.dir>0?"ascending":"descending"):"none"}"><button class="sorth" data-act="sort" data-id="${k}" aria-pressed="${S.sort.key===k}">${l}${S.sort.key===k?(S.sort.dir>0?" ↑":" ↓"):""}</button></th>`;
+  return head(m.name,`${m.metro?"Metropolitan municipality":"Local municipality in "+m.distName+" District"}, ${PROVS[m.prov]}. ${m.n} wards. Select a ward to open its page.`,
+    `<label>Municipality ${muniSelect("muni",m.prov,m.code)}</label><div class="seg" role="group" aria-label="Colour wards by">${MODES.map(([k,l])=>`<button data-act="mode" data-id="${k}" aria-pressed="${S.mapMode===k}">${l}</button>`).join("")}</div>`,
+    crumb(["South Africa","nav","map"],[PROVS[m.prov],"prov",m.prov],[m.name]))+`<div class="stack">
+  <div class="stats">${stat("Wards",m.n)}${stat("Wards led by each party",`<em class="long">${s.lead.map((n,i)=>({n,i})).filter(x=>x.n).sort((a,b)=>b.n-a.n).map(x=>ab(x.i)+" "+x.n).join(", ")}</em>`)}
+   ${stat("Close contests",s.close,"Lead under 5 points")}${stat("Incumbent not leading",s.diff)}${stat("Service-stress index",m.stress.toFixed(2),"0 is low, 1 is high. Synthetic")}</div>
+  <div class="grid2 even"><div class="card sticky"><h2>Wards 1 to ${m.n} ${syn}</h2>
+    <div class="tiles ${m.cols>10?"dense":""}" style="grid-template-columns:repeat(${m.cols},minmax(0,1fr));max-width:${m.cols*84}px">${ws.map(w=>{const [st,txt]=tileStyle(w);return `<button class="tile" style="${st}" data-act="ward" data-id="${w.id}" aria-label="Ward ${w.no}: ${txt}" title="Ward ${w.no}: ${txt}"><b>${w.no}</b><span>${txt}</span></button>`}).join("")}</div>
+    <div class="legend">${LEGENDS[S.mapMode]()}</div><p class="sub small">${mode[2]}</p>
+    <p class="sub small">Schematic layout. Tile positions and which wards adjoin each other are placeholders, not real geography; the production build draws the Municipal Demarcation Board's 2026 ward boundaries.</p></div>
+   <div class="card"><h2>Ward list ${tag("MODELLED")}</h2><div class="scroll"><table class="tight"><thead><tr>${th("no","Ward")}${th("leader","Leading")}${th("share","Share",1)}${th("margin","Lead",1)}${th("move","Incumbent movement",1)}${th("conf","Confidence",1)}</tr></thead><tbody>${
+    rows.map(w=>{const r=S.res[w.ix], d=r.B[w.inc]-w.base[w.inc];return `<tr class="pick"><td>${wardLink(w)}</td><td>${sw(r.leader)}${ab(r.leader)}</td><td class="n">${pc(r.B[r.leader])}</td>
+      <td class="n">${pt(r.margin)}</td><td class="n ${d<0?"down":"up"}">${ab(w.inc)} ${pt(d)}</td><td class="n">${r.conf}</td></tr>`}).join("")}</tbody></table></div></div></div></div>`}
+
+// ---------------------------------------------------------------- ward detail
+function pageWard(){const w=wardById(S.ward), m=MUNIS[w.mi], r=S.res[w.ix], o=S.out[w.ix], cand=w.cand, R=REGIONS[w.region], win=leadChance(w), cl=candList(w);
+  const sb=w.base.slice().sort((a,b)=>b-a), d=r.B[w.inc]-w.base[w.inc];
+  const candTxt=cand.standing?`Sitting councillor ${cl.councillor} (${ab(w.inc)}) is standing again`
+    :cand.switchTo!==null?`Sitting councillor ${cl.councillor} now stands for the ${ab(cand.switchTo)}; ${cl.incRow.name} stands for the ${ab(w.inc)}`
+    :`${cl.incRow.name} stands for the ${ab(w.inc)} in place of sitting councillor ${cl.councillor}`;
+  const show=PARTIES.map((p,i)=>i).filter(i=>i===8||Math.max(o.A.sh[i],o.B.sh[i],o.C.sh[i])>=.03).sort((a,b)=>o.C.sh[b]-o.C.sh[a]);
+  const cell=(x,i)=>`<td class="n ${argmax(x.sh)===i?"best":""}">${pc(x.sh[i])}<br><small>${pc(x.lo[i],0)} to ${pc(x.hi[i],0)}</small></td>`;
+  const pollSrc=o.A.src==="ward"?`Ward survey of ${w.survey.n} interviews, fieldwork ${fmt(w.survey.from)} to ${fmt(w.survey.to)}.`
+    :`No ward survey. The ${R.label} of ${R.n} interviews (${fmt(R.from)} to ${fmt(R.to)}) is applied to this ward as a uniform swing.`;
+  const evs=r.evs.slice().sort((a,b)=>b.weight-a.weight);
+  const step=k=>`<button class="btn quiet" data-act="ward" data-id="${m.code}-${w.no+k}" ${w.no+k<1||w.no+k>m.n?"disabled":""}>${k<0?"Previous ward":"Next ward"}</button>`;
+  return head(`Ward ${w.no}, ${m.name}`,`${PROVS[m.prov]}. ${w.settle}. ${candTxt}.${cl.bigIndep?" "+cl.bigIndep.name+" is standing as a prominent independent.":""}`,
+    `${step(-1)}${step(1)}<button class="btn" data-act="eventHere">Record an event here</button>`,
+    crumb(["South Africa","nav","map"],[PROVS[m.prov],"prov",m.prov],[m.name,"muni",m.code],["Ward "+w.no]))+`<div class="stack">
+  <div class="stats">${stat("Leading in output B",sw(r.leader)+ab(r.leader)+" "+pc(r.B[r.leader]),"Leads in "+pc(win[r.leader],0)+" of "+MC+" simulations")}
+   ${stat("Lead over second party",pt(r.margin),r.enp.toFixed(1)+" effective parties")}${stat("Turnout estimate",pc(r.turnout),pc(r.tLo,0)+" to "+pc(r.tHi,0)+", modelled separately")}
+   ${stat("Incumbent movement",`<em class="${d<0?"down":"up"}">${ab(w.inc)} ${pt(d)}</em>`,"Since the rebuilt baseline")}
+   ${stat("Evidence confidence",r.conf+" / 100","Data "+pc(w.complete,0)+" complete, freshness "+pc(r.fresh,0))}</div>
+  <div class="grid2"><div class="stack">
+    <div class="card"><h2>Estimated vote share, output B ${tag("MODELLED")} ${syn}</h2>${bars(r.B,r.lo,r.hi,i=>win[i]>=.005?", leads in "+pc(win[i],0):"")}
+     <p class="sub small">Bars are estimated shares. The line is the 80% interval. "Leads in" is the share of ${MC} simulations in which the party comes first.</p></div>
+    <div class="card"><h2>Candidates ${syn}</h2>
+     <p class="sub small">${cl.total} candidates on the ward ballot: ${cl.named} from the parties listed${cl.indep?", "+cl.indep+" independent":""}${cl.others?" and "+cl.others+" from other parties":""}.</p>
+     <div class="scroll"><table class="c1"><thead><tr><th>Party</th><th>Candidate</th><th>Stood in 2021</th><th class="n">Local mentions</th><th class="n">Effect on share</th></tr></thead><tbody>${
+      cl.rows.map(c=>{const e=c.party===8?null:r.contrib.candidates[c.party];return `<tr><td>${sw(c.party)}${c.label}</td><td><b>${c.name}</b><br><small>${c.status}</small></td><td>${c.stood?"Yes":"No"}</td><td class="n">${c.mentions}</td>
+       <td class="n ${e===null?"":e<0?"down":"up"}">${e===null?"<small>in Other</small>":pt(e)}</td></tr>`}).join("")}${
+      cl.others||cl.indep?`<tr><td>${sw(8)}Other parties${cl.indep?" and independents":""}</td><td>${cl.others} further candidate${cl.others===1?"":"s"}</td><td></td><td></td><td class="n ${r.contrib.candidates[8]<0?"down":"up"}">${pt(r.contrib.candidates[8])}</td></tr>`:""}</tbody></table></div>
+     <p class="sub small">"Effect on share" is what the candidate layer adds to or takes from each party in this ward${S.layers.candidates?"":" (the layer is switched off)"}. Local mentions counts recorded events and media items naming the candidate.</p>
+     <p class="assume">${syn} The names are generated for this demonstration and do not refer to real people. The production build shows the Electoral Commission's certified candidate list, with a source and date on every attribute.</p></div>
+    <div class="card"><h2>Poll comparison ${tag("MEASUREMENT")} ${tag("MODELLED")} ${syn}</h2>
+     <div class="scroll"><table><thead><tr><th>Party</th><th class="n">A. Poll only</th><th class="n">B. Model without polls</th><th class="n">C. Combined</th></tr></thead>
+     <tbody>${show.map(i=>`<tr><td>${sw(i)}${ab(i)}</td>${cell(o.A,i)}${cell(o.B,i)}${cell(o.C,i)}</tr>`).join("")}
+     <tr><td>Turnout</td><td class="n">${pc(o.A.turnout)}<br><small>stated intention</small></td><td class="n">${pc(o.B.turnout)}</td><td class="n">${pc(o.C.turnout)}</td></tr></tbody></table></div>
+     <p class="sub small">${pollSrc} ${S.layers.polls?`In output C the poll carries ${pc(o.C.pollWeight,0)} of the weight in this ward.`:"The poll layer is switched off, so C equals B."} Bold marks the leading party in each output.</p>
+     ${o.A.src!=="ward"?`<p class="assume">${tag("ASSUMPTION")} Applying a ${o.A.src==="metro"?"metro":"provincial"} poll to a ward assumes every ward moved by the same amount. Extra uncertainty of 5 points is added for it.</p>`:""}</div></div>
+   <div class="stack">
+    <div class="card"><h2>Ward snapshot ${tag("FACT")} ${syn}</h2><div class="kv"><div><span>Incumbent party</span><b>${sw(w.inc)}${ab(w.inc)}</b></div>
+     <div><span>Baseline share and lead</span><b>${pc(sb[0])}, ${pt(sb[0]-sb[1])}</b></div><div><span>Registered voters</span><b>${num(w.reg)}</b></div>
+     <div><span>Baseline turnout</span><b>${pc(w.tb)}</b></div><div><span>Ward candidates</span><b>${cl.total}</b></div><div><span>Boundary change score</span><b>${pc(w.boundary,0)}</b></div>
+     <div><span>By-election since 2021</span><b>${w.byEl?fmt(w.byEl.day):"None"}</b></div><div><span>Evidence last confirmed</span><b>${fmt(w.lastConf)}</b></div></div>
+     <p class="sub small">Ward id ${w.wid} in the 2016 delimitation. The id and ward number are real; the figures are synthetic.</p></div>
+    <div class="card"><h2>Why the assessment moved ${tag("MODELLED")}</h2><div class="scroll"><table><thead><tr><th>Evidence layer</th><th class="n">${ab(w.inc)} (incumbent)</th>${r.leader!==w.inc?`<th class="n">${ab(r.leader)} (leading)</th>`:""}</tr></thead><tbody>${
+     Object.keys(DRIVER).map(k=>`<tr><td>${DRIVER[k]}${S.layers[k]?"":" <small>(off)</small>"}</td><td class="n ${r.contrib[k][w.inc]<0?"down":"up"}">${pt(r.contrib[k][w.inc])}</td>
+      ${r.leader!==w.inc?`<td class="n ${r.contrib[k][r.leader]<0?"down":"up"}">${pt(r.contrib[k][r.leader])}</td>`:""}</tr>`).join("")}</tbody></table></div>
+     <p class="sub small">Change in vote share attributed to each layer, applied in this order.</p></div>
+    <div class="card"><h2>Events acting on this ward</h2>${!S.layers.events?`<div class="box">The local events layer is switched off.</div>`:evs.length?`<div class="scroll"><table><thead><tr><th>Event</th><th>Reaches ward as</th><th class="n">Weight</th></tr></thead><tbody>${
+      evs.map(x=>`<tr><td>${esc(CATS[x.e.cat].title)}<br><small>${x.e.id}, ${fmt(x.e.day)}, severity ${x.e.sev} of 5</small></td><td>${x.how}</td><td class="n">${x.weight.toFixed(2)}</td></tr>`).join("")}</tbody></table></div>
+      <p class="sub small">Weight is severity times credibility times time decay times reach.</p>`:`<div class="box">No verified event is acting on this ward at ${fmt(S.day)}.</div>`}</div></div></div></div>`}
+
+// ----------------------------------------------------------- poll comparison
+function pagePolls(){const ws=S.pollProv==="ALL"?WARDS:WARDS.filter(w=>w.prov===S.pollProv);
+  const rows=ws.map(w=>{const o=S.out[w.ix]; let g=0,p=0; for(let i=0;i<NP;i++){const x=o.A.sh[i]-o.B.sh[i]; if(Math.abs(x)>Math.abs(g)){g=x;p=i}}
+    return {w,o,g,p,la:argmax(o.A.sh),lb:S.res[w.ix].leader}});
+  const differ=rows.filter(x=>x.la!==x.lb).length, avg=rows.reduce((a,x)=>a+Math.abs(x.g),0)/rows.length, own=rows.filter(x=>x.o.A.src==="ward").length;
+  const top=rows.sort((a,b)=>Math.abs(b.g)-Math.abs(a.g)).slice(0,40);
+  const lead=(x,i)=>`${sw(i)}${ab(i)} ${pc(x.sh[i],0)}`, SRC={ward:"Ward survey",metro:"Metro poll, swing",province:"Provincial poll, swing"};
+  return head("Poll comparison","The core experiment: the poll alone (A), the model without polls (B) and the two combined (C), ward by ward. Sorted by where poll and model disagree most.",
+    `<label>Province ${provSelect("pollProv",S.pollProv,true)}</label>`)+`<div class="stack">
+  <div class="stats">${stat("Wards compared",num(rows.length))}${stat("Poll and model name different leaders",num(differ),pc(differ/rows.length,0)+" of wards")}
+   ${stat("Average largest gap",(100*avg).toFixed(1)+" pts","Between A and B, on the party where they differ most")}${stat("Wards with their own survey",num(own),"The rest rely on a metro or provincial poll")}</div>
+  ${S.layers.polls?"":`<div class="box">The poll layer is switched off in Model settings, so output C equals output B.</div>`}
+  <div class="card"><h2>Largest disagreements ${tag("MEASUREMENT")} ${tag("MODELLED")} ${syn}</h2><div class="scroll"><table><thead><tr><th>Ward</th><th>Poll source</th><th>A. Poll only</th><th>B. Model without polls</th><th>C. Combined</th><th class="n">Largest gap, A minus B</th><th class="n">Poll weight in C</th></tr></thead><tbody>${
+    top.map(x=>{const lc=argmax(x.o.C.sh);return `<tr class="pick"><td>${wardLink(x.w,wardName(x.w))}<br><small>${PROVS[x.w.prov]}</small></td><td>${SRC[x.o.A.src]}${x.o.A.src==="ward"?", "+x.w.survey.n:""}</td>
+     <td>${lead(x.o.A,x.la)}</td><td class="${x.la!==x.lb?"best":""}">${lead(x.o.B,x.lb)}</td><td>${lead(x.o.C,lc)}</td>
+     <td class="n ${x.g<0?"down":"up"}">${ab(x.p)} ${pt(x.g)}</td><td class="n">${pc(x.o.C.pollWeight,0)}</td></tr>`}).join("")}</tbody></table></div>
+   <p class="sub small">Showing ${top.length} of ${num(rows.length)} wards. Each cell names that output's leading party and share; bold in column B marks wards where the model and the poll name different leaders.</p></div></div>`}
+
+// -------------------------------------------------------------------- events
+function pageEvents(){const m=muniOf(S.evMuni), all=S.events.filter(e=>e.mi===m.mi).sort((a,b)=>b.day-a.day);
+  const status=e=>!e.verified?"Awaiting verification, not in model":e.day>S.day?"Dated after the model date, hidden":e.persistent&&e.end===null?"In model, persistent":"In model, decaying";
+  const live=all.filter(e=>e.verified&&e.day<=S.day).length;
+  return head("Events","Local developments recorded as structured events. Each one decays over time and can reach adjoining wards or the whole municipality.",
+    `<label>Province ${provSelect("evProv",m.prov)}</label><label>Municipality ${muniSelect("evMuni",m.prov,m.code)}</label>`)+`<div class="grid2">
+  <div class="card"><h2>Event register, ${m.name} ${tag("FACT")} ${syn}</h2><p class="sub small">${all.length} events on record, ${live} in the model at ${fmt(S.day)}. ${num(S.events.length)} events on record nationally.</p>
+   ${all.length?`<div class="scroll"><table><thead><tr><th>Date</th><th>Event</th><th>Ward</th><th>Reach</th><th>Source</th><th>Status</th></tr></thead><tbody>${
+    all.map(e=>`<tr><td>${fmt(e.day)}</td><td>${esc(CATS[e.cat].title)}<br><small>${e.id}, ${CATS[e.cat].label}, severity ${e.sev} of 5, credibility ${e.cred}${e.party!==null?", linked to "+ab(e.party):""}</small></td>
+     <td>${wardLink(wardById(e.ward),String(wardById(e.ward).no))}</td><td>${e.scope==="ward"?"Ward":"Municipality"}</td><td>${e.by==="analyst"?"Analyst entry":esc(e.source)}</td><td>${status(e)}</td></tr>`).join("")}</tbody></table></div>`:`<div class="box">No events on record for this municipality.</div>`}</div>
+  <div class="card sticky"><h2>Record an event</h2><div class="form">
+    <label>Ward in ${m.name}<select data-sel="evWard">${Array.from({length:m.n},(_,i)=>`<option value="${i+1}" ${S.evWard===i+1?"selected":""}>Ward ${i+1}</option>`).join("")}</select></label>
+    <label>Category<select id="ev-cat">${Object.entries(CATS).map(([k,c])=>`<option value="${k}">${c.label}</option>`).join("")}</select></label>
+    <div class="two"><label>Severity, 1 to 5<input id="ev-sev" type="number" min="1" max="5" value="4"></label>
+     <label>Duration<select id="ev-per"><option value="0">Short-lived</option><option value="1">Persistent</option></select></label></div>
+    <label>Reach<select id="ev-scope"><option value="ward">This ward and adjoining wards</option><option value="municipality">Whole municipality</option></select></label>
+    <button class="btn primary" data-act="addEvent">Record event and re-run the model</button></div>
+   <p class="sub small">The event is dated ${fmt(S.day)}, marked as an analyst entry and logged in the audit trail. You are then taken to What changed.</p></div></div>`}
+
+// ---------------------------------------------------------------- candidates
+function pageCandidates(){const m=muniOf(S.candMuni), ws=wardsOf(m), t=candTotals();
+  const sit=(w,cl)=>w.cand.standing?"Standing again":w.cand.switchTo!==null?"Now stands for the "+ab(w.cand.switchTo)+"; "+cl.incRow.name+" stands for the "+ab(w.inc):"Not standing; "+cl.incRow.name+" stands for the "+ab(w.inc);
+  let mt=0,ms=0; ws.forEach(w=>{mt+=candList(w).total; if(w.cand.standing) ms++});
+  return head("Candidates","Who is standing in each ward, and what the model takes from it: whether the sitting councillor stands again, replacements, party switches and independents.",
+    `<label>Province ${provSelect("candProv",m.prov)}</label><label>Municipality ${muniSelect("candMuni",m.prov,m.code)}</label>`)+`<div class="stack">
+  <div class="stats">${stat("Ward candidates in this demo",num(t.total),"Synthetic count across "+num(WARDS.length)+" wards")}${stat("Sitting councillor stands again",num(t.standing),pc(t.standing/WARDS.length,0)+" of wards")}
+   ${stat("Sitting councillor replaced",num(t.replaced),"Same party, new candidate")}${stat("Sitting councillor switched party",num(t.switched))}${stat("Prominent independent",num(t.indep),"Wards with one standing")}</div>
+  <div class="card"><h2>${m.name}, by ward ${syn}</h2><p class="sub small">${num(mt)} candidates across ${m.n} wards; the sitting councillor stands again in ${ms}. Select a ward to see its full candidate table.</p>
+   <div class="scroll"><table><thead><tr><th>Ward</th><th class="n">Candidates</th><th>Sitting councillor</th><th>In this election</th><th>Independents</th><th class="n">Candidate effect on incumbent</th><th>Leading in output B</th></tr></thead><tbody>${
+    ws.map(w=>{const cl=candList(w), r=S.res[w.ix], e=r.contrib.candidates[w.inc];return `<tr class="pick"><td>${wardLink(w)}</td><td class="n">${cl.total}</td><td><b>${cl.councillor}</b><br><small>${sw(w.inc)}${ab(w.inc)}</small></td><td>${sit(w,cl)}</td>
+      <td>${cl.bigIndep?cl.bigIndep.name+"<br><small>Prominent independent</small>":cl.indep?cl.indep+" standing":"None"}</td><td class="n ${e<0?"down":"up"}">${pt(e)}</td><td>${sw(r.leader)}${ab(r.leader)} ${pc(r.B[r.leader],0)}</td></tr>`}).join("")}</tbody></table></div></div>
+  <div class="grid2 even"><div class="card"><h2>The real picture ${tag("FACT")}</h2><table><tbody><tr><td>Certified candidates</td><td>136,790 <small>Electoral Commission, 16 September 2026</small></td></tr>
+    <tr><td>Party ward candidates</td><td>98,219</td></tr><tr><td>Independent ward candidates</td><td>621</td></tr><tr><td>Party-list candidates</td><td>38,571</td></tr></tbody></table></div>
+   <div class="card"><h2>About the names ${syn}</h2><p>Every candidate and councillor name in this demonstration is generated and does not refer to a real person. Names are drawn by province, never by party.</p>
+    <p class="sub">The production build loads the Electoral Commission's certified list into these tables, ward by ward, with previous office, previous contests and verified candidate-specific developments, each with its source and date.</p></div></div></div>`}
+
+// -------------------------------------------------------------- what changed
+function pageChanges(){const c=S.changes;
+  if(!c) return head("What changed","Each model run is compared with the one before it.")+`<div class="box">This is the first run, so there is nothing to compare yet. Advance the model date, record an event, or change a layer or parameter in Model settings.</div>`;
+  const flips=c.list.filter(x=>x.lead0!==x.lead1).length;
+  const row=x=>{const w=wardById(x.ward);return `<tr class="pick"><td>${wardLink(w,wardName(w))}<br><small>${PROVS[w.prov]}</small></td><td>${sw(x.party)}${ab(x.party)}</td><td class="n">${pc(x.from)}</td><td class="n">${pc(x.to)}</td>
+    <td class="n ${x.d<0?"down":"up"}">${pt(x.d)}</td><td>${DRIVER[x.driver]||x.driver}</td><td>${x.lead0!==x.lead1?ab(x.lead0)+" to "+ab(x.lead1):"No change"}</td></tr>`};
+  return head("What changed",`${c.run} compared with ${c.prev}, ${stamp(c.ts)}.`)+`<div class="stack">
+  <div class="stats">${stat("Cause",`<em class="long">${esc(c.trigger)}</em>`)}${stat("Wards that moved",num(c.list.length),"By more than 0.1 points, of "+num(WARDS.length))}${stat("Leading party changed",flips)}</div>
+  <div class="card"><h2>Largest movements ${tag("MODELLED")} ${syn}</h2>${c.list.length?`<div class="scroll"><table><thead><tr><th>Ward</th><th>Largest mover</th><th class="n">Before</th><th class="n">After</th><th class="n">Change</th><th>Driver</th><th>Leading party</th></tr></thead>
+    <tbody>${c.list.slice(0,30).map(row).join("")}</tbody></table></div><p class="sub small">Showing ${Math.min(30,c.list.length)} of ${num(c.list.length)}. The driver is the evidence layer whose contribution changed most for that party.</p>`
+    :`<div class="box">No ward moved by more than 0.1 points.</div>`}</div></div>`}
+
+// ---------------------------------------------------------------- validation
+function pageValidation(){const F=S.frozen, sc=S.score;
+  let h=head("Validation","Freeze the three outputs before election day, then score them against the result.")+`<div class="stack"><div class="card"><div class="steps">
+   <div class="step ${F?"done":""}"><i>1</i><div><h2>Freeze outputs A, B and C</h2>${F?`<div class="kv"><div><span>Frozen as</span><b>${F.run}</b></div><div><span>Frozen at</span><b>${stamp(F.ts)}</b></div><div><span>Model date</span><b>${fmt(F.day)}</b></div><div><span>Wards held</span><b>${num(F.out.length)}</b></div></div>
+     <p class="sub small">Later changes to events, layers or parameters still update the live model but do not touch this set.</p>`
+     :`<p>Stores the poll-only, model-without-polls and combined outputs for all ${num(WARDS.length)} wards exactly as they stand at ${fmt(S.day)}. A frozen set cannot be edited.</p><p><button class="btn primary" data-act="freeze">Freeze the three outputs</button></p>`}</div></div>
+   <div class="step ${sc?"done":""}"><i>2</i><div><h2>Score against the result ${syn}</h2>${sc?`<p class="sub">Scored against a simulated result drawn from the same hidden synthetic world as the polls, with events up to election day.</p>`
+     :`<p>The real election is on 4 November 2026, so there is no result yet. For this demonstration a simulated result is drawn from the same hidden synthetic world the polls came from.</p>
+      <p><button class="btn primary" data-act="reveal" ${F?"":"disabled"}>Reveal simulated result and score</button></p>`}</div></div></div></div>`;
+  if(!sc) return h+`</div>`;
+  const rows=[["Vote-share error, all wards","mae",pts,1],["Turnout error","turn",pts,1],["Error in close wards ("+num(sc.A.nClose)+" wards, lead under 10 pts)","close",pts,1],["Error in other wards","open",pts,1],
+    ["Error in fragmented contests ("+num(sc.A.nFrag)+" wards)","frag",pts,1],["Incumbent movement: direction right","dir",v=>pc(v,0),-1],["Incumbent movement: size error","mv",pts,1],
+    ["Results inside the 80% interval (target 80%)","cov",v=>pc(v,0),0],["Leading party called","win",v=>pc(v,0),-1]];
+  const best=(k,dirn)=>{const v=["A","B","C"].map(x=>sc[x][k]); if(v.includes(null)) return -1; return dirn===0?v.reduce((bi,x,i)=>Math.abs(x-.8)<Math.abs(v[bi]-.8)?i:bi,0):dirn>0?v.indexOf(Math.min(...v)):v.indexOf(Math.max(...v))};
+  const order=["A","B","C"].sort((x,y)=>sc[x].mae-sc[y].mae), names={A:"the poll alone",B:"the model without polls",C:"the combined output"};
+  return h+`<div class="stats">${stat("Lowest vote-share error",{A:"A. Poll only",B:"B. Model",C:"C. Combined"}[order[0]],pts(sc[order[0]].mae))}${stat("A. Poll only",pts(sc.A.mae))}${stat("B. Model without polls",pts(sc.B.mae))}${stat("C. Combined",pts(sc.C.mae))}</div>
+  <div class="card"><h2>Scorecard ${syn}</h2><div class="scroll"><table><thead><tr><th>Measure</th><th class="n">A. Poll only</th><th class="n">B. Model without polls</th><th class="n">C. Combined</th></tr></thead><tbody>${
+    rows.map(([l,k,f,d])=>{const b=best(k,d);return `<tr><td>${l}</td>${["A","B","C"].map((x,i)=>`<td class="n ${i===b?"best":""}">${f(sc[x][k])}</td>`).join("")}</tr>`}).join("")}</tbody></table></div>
+   <p class="sub small">Bold is the best of the three on each measure. On vote-share error, ${names[order[0]]} came first, ahead of ${names[order[1]]} and ${names[order[2]]}. Polls record stated intention to vote, which runs well above actual turnout here. "Leading party called" is last on purpose: it is one measure among several.</p></div>
+  <div class="grid2"><div class="card"><h2>Ablation: what each layer was worth</h2><div class="scroll"><table><thead><tr><th>Layer removed</th><th class="n">With it</th><th class="n">Without it</th><th class="n">Difference</th><th>Reading</th></tr></thead><tbody>${
+    sc.abl.map(a=>{const d=a.without-a.full;return `<tr><td>${a.label}</td><td class="n">${pts(a.full)}</td><td class="n">${pts(a.without)}</td><td class="n ${d>0?"up":"down"}">${pt(d,2)}</td><td>${d>.0005?"Improved measurement":d<-.0005?"Made it worse":"Added little"}</td></tr>`}).join("")}</tbody></table></div>
+    <p class="sub small">Each row re-runs the frozen model with one layer removed. A positive difference means the error rose without the layer, so the layer was adding information.</p></div>
+   <div class="card"><h2>Vote-share error by province</h2><table><thead><tr><th>Province</th><th class="n">A</th><th class="n">B</th><th class="n">C</th></tr></thead><tbody>${
+    PROV_ORDER.map(p=>{const v=["A","B","C"].map(x=>sc[x].by[p]), b=v.indexOf(Math.min(...v));return `<tr><td>${PROVS[p]}</td>${v.map((x,i)=>`<td class="n ${i===b?"best":""}">${pts(x)}</td>`).join("")}</tr>`}).join("")}</tbody></table></div></div>
+  <p class="assume">${tag("ASSUMPTION")} The simulated world was built so the model's assumptions are only partly right: it responds to events at three-quarters of the assumed strength, adjoining wards do not influence each other at all, and people overstate their intention to vote by about 10 points. The scorecard shows how the test works, not how the real model will perform.</p></div>`}
+
+// --------------------------------------------------------------- audit trail
+function pageAudit(){
+  return head("Audit trail",`Every model run, what triggered it and the settings in force. Dataset ${DATASET}, model version demo-0.2.`)+`<div class="card"><h2>Model runs ${syn}</h2><div class="scroll"><table><thead><tr><th>Run</th><th>Time</th><th>Model date</th><th>Trigger</th><th>Layers on</th><th class="n">Events in model</th><th class="n">Wards moved</th></tr></thead><tbody>${
+   S.runs.map(r=>`<tr><td><b>${r.id}</b>${S.frozen&&S.frozen.run===r.id?"<br><small>frozen set</small>":""}</td><td>${stamp(r.ts)}</td><td>${fmt(r.day)}</td><td>${esc(r.trigger)}${r.analyst?"<br><small>analyst intervention</small>":""}</td>
+   <td>${["1"].concat(LAYERS.filter(l=>r.layers[l[0]]).map(l=>l[2]==="1"?"1b":l[2])).join(", ")}</td><td class="n">${r.events}</td><td class="n">${r.moved===undefined?"":num(r.moved)}</td></tr>`).join("")}</tbody></table></div>
+   <p class="sub small">Layer numbers follow the brief: 1 electoral baseline, 1b later elections, 2 structural, 3 local events, 4 candidates, 5 polls.</p></div>`}
+
+// ------------------------------------------------------------ model settings
+const LAYER_INFO={later:"The 2024 national ballot and ward by-elections since 2021, blended into the starting point.",
+ structural:"A municipal service-stress index and each ward's exposure to it, acting on the ward incumbent.",
+ events:"Verified local events, with time decay and reach to adjoining wards and the municipality.",
+ candidates:"Whether the sitting councillor stands again, replacements, party switches and prominent independents.",
+ polls:"Ward surveys, metro polls and provincial polls. Feeds output A and the combined output C only; output B never reads it."};
+function pageSettings(){const on=LAYERS.filter(l=>S.layers[l[0]]).length;
+  return head("Model settings","Switch evidence layers on or off and adjust the model's assumptions. Every change re-runs the model and is logged in the audit trail.")+`<div class="grid2 even">
+  <div class="card"><h2>Evidence layers</h2><p class="sub small">${on+1} of 6 on. Switching a layer off is how the ablation test works.</p>
+   <div class="layerrow"><input type="checkbox" checked disabled id="l-base"><label for="l-base"><b>1 Electoral baseline</b><br><span class="sub">Historic ward results rebuilt on 2026 boundaries. Always on.</span></label></div>
+   ${LAYERS.map(([k,l,n])=>`<div class="layerrow ${S.layers[k]?"":"off"}"><input type="checkbox" id="l-${k}" data-layer="${k}" ${S.layers[k]?"checked":""}><label for="l-${k}"><b>${n==="1"?"1b":n} ${l}</b><br><span class="sub">${LAYER_INFO[k]}</span></label></div>`).join("")}</div>
+  <div class="card"><h2>Model parameters ${tag("ASSUMPTION")}</h2><p class="sub small">Judgement calls, not estimates. In the real build they are fitted and back-tested.</p>
+   <div class="params">${Object.keys(DEFAULTS).map(k=>`<label>${PARAM_INFO[k]}<br><input type="number" step="0.05" min="0" max="2" data-param="${k}" value="${S.params[k]}"> <span>default ${DEFAULTS[k]}</span></label>`).join("")}</div>
+   <p class="assume">Output B is computed by a function that takes no poll input. Switching the poll layer changes output C only.</p></div></div>`}
+
+// --------------------------------------------------------------------- shell
+const PAGES={candidates:pageCandidates,map:pageMap,province:pageProvince,muni:pageMuni,ward:pageWard,polls:pagePolls,events:pageEvents,changes:pageChanges,validation:pageValidation,audit:pageAudit,settings:pageSettings};
+function render(){const cur=["province","muni","ward"].includes(S.page)?"map":S.page, off=LAYERS.filter(l=>!S.layers[l[0]]).length;
+  const badge={changes:S.changes&&S.changes.list.length?`<span class="pill">${num(S.changes.list.length)}</span>`:"",settings:off?`<span class="pill">${off} off</span>`:"",validation:S.frozen&&!S.score?`<span class="pill">frozen</span>`:""};
+  document.getElementById("app").innerHTML=`
+  <aside class="side"><div class="side-in"><div class="brand">Ward election intelligence<small>2026 local government elections</small></div>
+   <nav aria-label="Sections">${NAV.map(n=>n?`<button data-act="nav" data-id="${n[0]}" ${cur===n[0]?'aria-current="page"':""}>${n[1]}${badge[n[0]]||""}</button>`:`<div class="gap"></div>`).join("")}</nav></div></aside>
+  <div class="content"><div class="flag" role="note"><b>Synthetic demonstration data.</b> Places, party names and election facts are real; every vote share, poll, event, candidate name and result is generated. Not a forecast.</div>
+   <div class="top"><span>Model date <b>${fmt(S.day)}</b></span><button class="btn quiet" data-act="day" ${S.day>=LASTDAY?"disabled":""}>Advance one day</button>
+    <button class="btn quiet" data-act="week" ${S.day>=LASTDAY?"disabled":""}>Advance one week</button>
+    <span class="run">${S.runs[0].id}${S.frozen?", outputs frozen as "+S.frozen.run:""}</span></div>
+   <main class="page">${PAGES[S.page]()}</main></div>`}
+function go(page){S.page=page; window.scrollTo(0,0)}
+function advance(n){const d0=S.day; S.day=Math.min(LASTDAY,S.day+n);
+  const entered=S.events.filter(e=>e.verified&&e.day>d0&&e.day<=S.day).length;
+  recompute(`Model date advanced from ${fmt(d0)} to ${fmt(S.day)}; ${entered} new event${entered===1?"":"s"} entered, older events decayed`)}
+function act(b){const a=b.dataset.act, id=b.dataset.id;
+  if(a==="nav") go(id);
+  else if(a==="prov"){S.prov=id; go("province")}
+  else if(a==="muni"){S.muni=id; S.prov=muniOf(id).prov; S.sort={key:"no",dir:1}; go("muni")}
+  else if(a==="ward"){const w=wardById(id); S.ward=id; S.muni=MUNIS[w.mi].code; S.candMuni=S.muni; S.prov=w.prov; go("ward")}
+  else if(a==="mode") S.mapMode=id;
+  else if(a==="sort") S.sort=S.sort.key===id?{key:id,dir:-S.sort.dir}:{key:id,dir:id==="no"||id==="leader"?1:-1};
+  else if(a==="day") advance(1); else if(a==="week") advance(7);
+  else if(a==="freeze") freeze(); else if(a==="reveal") reveal();
+  else if(a==="eventHere"){const w=wardById(S.ward); S.evMuni=MUNIS[w.mi].code; S.evWard=w.no; go("events")}
+  else if(a==="addEvent"){const m=muniOf(S.evMuni), w=wardById(m.code+"-"+Math.min(S.evWard,m.n)), cat=document.getElementById("ev-cat").value, sev=clamp(parseInt(document.getElementById("ev-sev").value,10)||3,1,5),
+      scope=document.getElementById("ev-scope").value, per=document.getElementById("ev-per").value==="1";
+    const e={id:"EV-A"+String(S.events.filter(x=>x.by==="analyst").length+1).padStart(2,"0"),ward:w.id,mi:m.mi,cat,sev,day:S.day,end:per?null:S.day+3,persistent:per,scope,party:null,cred:.9,verified:true,source:"Analyst entry",by:"analyst"};
+    S.events.push(e); recompute(`Event ${e.id} recorded in ${m.name} ward ${w.no}: ${CATS[cat].label.toLowerCase()}, severity ${sev}, ${scope==="ward"?"ward reach":"municipality-wide"}`,true); go("changes")}
+  render()}
+document.addEventListener("click",ev=>{const b=ev.target.closest("[data-act]"); if(b&&!b.disabled) act(b)});
+document.addEventListener("keydown",ev=>{if((ev.key==="Enter"||ev.key===" ")&&ev.target.matches&&ev.target.matches("path[data-act]")){ev.preventDefault(); act(ev.target)}});
+document.addEventListener("change",ev=>{const t=ev.target, first=p=>MUNIS.find(m=>m.prov===p).code;
+  if(t.dataset.sel==="prov") S.prov=t.value;
+  else if(t.dataset.sel==="muni"){S.muni=t.value; S.sort={key:"no",dir:1}}
+  else if(t.dataset.sel==="pollProv") S.pollProv=t.value;
+  else if(t.dataset.sel==="evProv"){S.evMuni=first(t.value); S.evWard=1}
+  else if(t.dataset.sel==="evMuni"){S.evMuni=t.value; S.evWard=1}
+  else if(t.dataset.sel==="evWard"){S.evWard=parseInt(t.value,10); return}
+  else if(t.dataset.sel==="candProv") S.candMuni=first(t.value);
+  else if(t.dataset.sel==="candMuni") S.candMuni=t.value;
+  else if(t.dataset.layer){const k=t.dataset.layer; S.layers[k]=t.checked; recompute(`Layer "${LAYERS.find(l=>l[0]===k)[1]}" switched ${t.checked?"on":"off"}`,true)}
+  else if(t.dataset.param){const k=t.dataset.param, v=clamp(parseFloat(t.value)||0,0,2), old=S.params[k]; if(v===old) return; S.params[k]=v; recompute(`Parameter "${PARAM_INFO[k]}" changed from ${old} to ${v}`,true)}
+  else return; render()});
+recompute("Initial run on the synthetic dataset"); render();
+</script>
+</body>
+</html>
